@@ -82,6 +82,15 @@ class DataModelEFMI(DataModel):
         vertex_ids = super().set_data(obj, mesh, index_buffer, vertex_buffer, vg_remap, mirror_mesh, mesh_scale, mesh_rotation)
 
         if encoded_data is not None:
+
+            # Invert X coord of every vector in arrays required to mirror mesh
+            if mirror_mesh:
+                decoded_normals = self.converter_mirror_vector(decoded_normals)
+
+            # Flip normals
+            if self.flip_normal:
+                decoded_normals = self.converter_flip_vector(decoded_normals)
+
             self.data_importer.import_normals(mesh, decoded_normals, vertex_ids)
 
             if import_tangent_data_to_attribute:
