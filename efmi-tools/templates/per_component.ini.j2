@@ -194,7 +194,7 @@ if $mod_enabled && DRAW_TYPE == 4
     vb2 = ref Resource_Component{{ componnet_id }}_VB2
     {%- for obj in merged_object.components[componnet_id].objects %}
     ; Draw {{ obj.name }}
-    drawindexedinstanced = {{ obj.index_count }}, INSTANCE_COUNT, 0, 0, FIRST_INSTANCE
+    drawindexedinstanced = {{ obj.index_count }}, INSTANCE_COUNT, {{ obj.index_offset }}, 0, FIRST_INSTANCE
     {%- endfor %}
 {%- else %}
     handling = skip
@@ -209,7 +209,7 @@ endif
 hash = {{ lod.vb0_hash }}
 $object_detected = 1
 if $mod_enabled && DRAW_TYPE == 4
-{%- if merged_object.components[lod_id].objects | length > 0 %}
+{%- if merged_object.components[componnet_id].objects | length > 0 %}
     {{note("Skip original draw call")}}
     handling = skip
     {{note("Trigger by-hash resource overrides")}}
@@ -221,7 +221,7 @@ if $mod_enabled && DRAW_TYPE == 4
     vb2 = ref Resource_Component{{ componnet_id }}_VB2_LOD
     {%- for obj in merged_object.components[componnet_id].objects %}
     ; Draw {{ obj.name }}
-    drawindexedinstanced = {{ obj.index_count }}, INSTANCE_COUNT, 0, 0, FIRST_INSTANCE
+    drawindexedinstanced = {{ obj.index_count }}, INSTANCE_COUNT, {{ obj.index_offset }}, 0, FIRST_INSTANCE
     {%- endfor %}
 {%- else %}
     handling = skip

@@ -282,6 +282,7 @@ class ObjectMerger:
     mesh_rotation: Tuple[float] = (0.0, 0.0, 0.0)
     add_missing_vertex_groups: bool = False
     force_object_name: str =''
+    allow_empty_components: bool = False
     # Output
     merged_object: MergedObject = field(init=False)
 
@@ -292,8 +293,20 @@ class ObjectMerger:
         self.initialize_components()
         try:
             self.import_objects_from_collection()
-            self.prepare_temp_objects()
-            self.build_merged_object()
+            if len(self.components) == 1 and self.allow_empty_components and len(self.components[0].objects) == 0:
+                self.merged_object = MergedObject(
+                    object=None,
+                    mesh=None,
+                    components=self.components,
+                    vertex_count=0,
+                    index_count=0,
+                    vg_count=0,
+                    shapekeys=None,
+                    skeleton_type=SkeletonType.PerComponent,
+                )
+            else:
+                self.prepare_temp_objects()
+                self.build_merged_object()
         except Exception as e:
             self.remove_temp_objects()
             raise e
@@ -360,8 +373,8 @@ class ObjectMerger:
 
             num_objects += 1
 
-        if num_objects == 0:
-            raise ValueError(f'No eligible `Component` objects found!')
+        if num_objects == 0 and not self.allow_empty_components:
+            raise ValueError(f'No eligible `Component {self.component_id}` objects found!')
 
     def prepare_temp_objects(self):
 
@@ -405,7 +418,13 @@ class ObjectMerger:
                 elif self.skeleton_type == SkeletonType.PerComponent:
                     # Exclude VGs with 'ignore' tag or with higher id VG count from Metadata.ini for current component
                     extracted_component = self.extracted_object.components[component_id]
-                    total_vg_count = len(extracted_component.vg_map)
+                    max_id = max(
+                        int(vg.name)
+                        for vg in obj.vertex_groups
+                        if vg.name.isdigit()
+                    )
+                    total_vg_count = max_id + 1
+                    # total_vg_count = len(extracted_component.vg_map)
                     ignore_list = [vg for vg in vertex_groups if 'ignore' in vg.name.lower() or vg.index >= total_vg_count]
                 remove_vertex_groups(temp_obj, ignore_list)
                 # Rename VGs to their indicies to merge ones of different components together

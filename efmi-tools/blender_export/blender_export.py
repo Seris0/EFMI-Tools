@@ -109,17 +109,17 @@ class ModExporter:
             except Exception as e:
                 raise e
             finally:
-                if self.cfg.remove_temp_object:
+                if self.cfg.remove_temp_object and merged_object.object is not None:
                     remove_mesh(merged_object.object.data)
                 set_user_context(self.context, user_context)
 
             index_count += merged_object.index_count
             vertex_count += merged_object.vertex_count
-            shapekeys_vertex_count += merged_object.shapekeys.vertex_count
+            # shapekeys_vertex_count += merged_object.shapekeys.vertex_count
 
         self.merged_object.index_count = index_count
         self.merged_object.vertex_count = vertex_count
-        self.merged_object.shapekeys.vertex_count = shapekeys_vertex_count
+        # self.merged_object.shapekeys.vertex_count = shapekeys_vertex_count
 
         if not self.cfg.partial_export:
             self.textures = get_textures(self.object_source_folder, ['af26db30', '1320a071', '10d7937d', '87505b2b'] if self.cfg.skip_known_cubemap_textures else [])
@@ -165,6 +165,7 @@ class ModExporter:
             mesh_scale=1.00,
             mesh_rotation=(0, 0, 0),
             add_missing_vertex_groups=self.cfg.add_missing_vertex_groups,
+            allow_empty_components=True,
         )
         print(f'Merged object build time: {time.time() - start_time :.3f}s ({self.merged_object.vertex_count} vertices, {self.merged_object.index_count} indices)')
         return object_merger.merged_object
@@ -181,7 +182,7 @@ class ModExporter:
                 buffers_format[buffer_name] = buffer_layout.get_layout()
 
         index_layout = None
-        if len(merged_object.object.vertex_groups) > 256:
+        if merged_object.object is not None and len(merged_object.object.vertex_groups) > 256:
             index_layout = []
             for component in merged_object.components:
                 index_layout.append(component.index_count)
@@ -197,56 +198,58 @@ class ModExporter:
                     buffers_format[buffer_name] = layout
                 layout.add_element(BufferSemantic(buffer_semantic.abstract, buffer_semantic.format))
             
-        buffers, vertex_count = data_model.get_data(
-            self.context, 
-            self.cfg.component_collection, 
-            merged_object.object, 
-            merged_object.mesh, 
-            self.excluded_buffers,
-            buffers_format,
-            self.cfg.mirror_mesh,
-            index_layout)
-        
-        self.buffers.update(buffers)
+        if merged_object.object is not None:
 
-        
-        lod_meshes = self.extracted_object.components[component_id].lods or []
-        for lod_mesh in lod_meshes:
-            vb2 = self.buffers.get(f'Component{component_id}_VB2', None)
-            if vb2 is not None:
-                indices = vb2.get_field(Semantic.Blendindices)
-                vg_count = int(indices.max()) + 1
+            buffers, vertex_count = data_model.get_data(
+                self.context, 
+                self.cfg.component_collection, 
+                merged_object.object, 
+                merged_object.mesh, 
+                self.excluded_buffers,
+                buffers_format,
+                self.cfg.mirror_mesh,
+                index_layout)
+            
+            self.buffers.update(buffers)
 
-                remap = numpy.array([lod_mesh.vg_map.get(str(vg_id), vg_id) for vg_id in range(vg_count)])
-                
-                vb2_lod = NumpyBuffer(layout=vb2.layout, size=len(vb2.data))
+            
+            lod_meshes = self.extracted_object.components[component_id].lods or []
+            for lod_mesh in lod_meshes:
+                vb2 = self.buffers.get(f'Component{component_id}_VB2', None)
+                if vb2 is not None:
+                    indices = vb2.get_field(Semantic.Blendindices)
+                    vg_count = int(indices.max()) + 1
 
-                vb2_lod.set_field(Semantic.Blendindices, remap[indices])
+                    remap = numpy.array([lod_mesh.vg_map.get(str(vg_id), vg_id) for vg_id in range(vg_count)])
+                    
+                    vb2_lod = NumpyBuffer(layout=vb2.layout, size=len(vb2.data))
 
-                weights = vb2.get_field(Semantic.Blendweights)
-                if weights is not None:
-                    vb2_lod.set_field(Semantic.Blendweights, weights)
+                    vb2_lod.set_field(Semantic.Blendindices, remap[indices])
 
-                self.buffers[f'Component{component_id}_VB2_LOD'] = vb2_lod
+                    weights = vb2.get_field(Semantic.Blendweights)
+                    if weights is not None:
+                        vb2_lod.set_field(Semantic.Blendweights, weights)
 
-        merged_object.vertex_count = vertex_count
-        merged_object.shapekeys.vertex_count = len(self.buffers.get('ShapeKeyVertexId', []))
+                    self.buffers[f'Component{component_id}_VB2_LOD'] = vb2_lod
 
-        remapped_vgs_counts = self.buffers.pop('BlendRemapLayout', None)
-        if remapped_vgs_counts is not None:
-            remap_id = 0
-            for component_id, vg_count in enumerate(remapped_vgs_counts.data.tolist()):
-                if vg_count == 0:
-                    continue
-                component = merged_object.components[component_id]
-                if vg_count > 256:            
-                    raise ConfigError('component_collection', f'Component{component_id} 256 VG limit exceeded!\n'
-                                      f'Currently it consists of {len(component.objects)} object(s) using total of {vg_count} VGs with non-zero weights.\n'
-                                      f'Please reduce the number of non-empty VGs or split objects between different components.')
-                component.blend_remap_id = remap_id
-                component.blend_remap_vg_count = vg_count
-                remap_id += 1
-            merged_object.blend_remap_count = remap_id
+            merged_object.vertex_count = vertex_count
+            merged_object.shapekeys.vertex_count = len(self.buffers.get('ShapeKeyVertexId', []))
+
+            remapped_vgs_counts = self.buffers.pop('BlendRemapLayout', None)
+            if remapped_vgs_counts is not None:
+                remap_id = 0
+                for component_id, vg_count in enumerate(remapped_vgs_counts.data.tolist()):
+                    if vg_count == 0:
+                        continue
+                    component = merged_object.components[component_id]
+                    if vg_count > 256:            
+                        raise ConfigError('component_collection', f'Component{component_id} 256 VG limit exceeded!\n'
+                                        f'Currently it consists of {len(component.objects)} object(s) using total of {vg_count} VGs with non-zero weights.\n'
+                                        f'Please reduce the number of non-empty VGs or split objects between different components.')
+                    component.blend_remap_id = remap_id
+                    component.blend_remap_vg_count = vg_count
+                    remap_id += 1
+                merged_object.blend_remap_count = remap_id
 
         print(f'Total mesh data collection time: {time.time() - start_time :.3f}s')
     
