@@ -1,6 +1,6 @@
 <h1 align="center">EFMI Tools</h1>
 
-<h4 align="center">Blender addon for Wuthering Waves Model Importer</h4>
+<h4 align="center">Blender addon for Endfield Model Importer</h4>
 
 <p align="center">
   <a href="#features">Features</a> •
@@ -21,7 +21,7 @@
 
 ## Features
 
-- **Frame Dump Data Extraction** — Fully automatic objects extraction from WuWa frame dumps
+- **Frame Dump Data Extraction** — Fully automatic objects extraction from Endfield frame dumps
 - **LOD Data Import** — Fully automatic search for LOD meshes in frame dump and automatic VG matching
 - **Extracted Object Import** —Imports extracted object into Blender as fully editable mesh
 - **EFMI Mod Export** — Builds plug-and-play EFMI-compatible mod out of mesh components
