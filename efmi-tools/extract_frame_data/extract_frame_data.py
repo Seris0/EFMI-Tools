@@ -393,13 +393,13 @@ def extract_frame_data(cfg, extract_lods=False):
         if imported_lods_count < len(extracted_object.components) / 2:
             bpy.context.window_manager.popup_menu(
                 lambda self, context: self.layout.label(text=f'Imported LoDs count {imported_lods_count} is suspiciously low for {len(extracted_object.components)} components total. Please try to create another Open World dump with being further away from the character in case you get LoD issues with exported mod.'),
-                title="LOD Import Complete",
-                icon='WARNING'
+                title="LOD Extraction Warning",
+                icon='WARNING_LARGE'
             )
         else:
             bpy.context.window_manager.popup_menu(
-                lambda self, context: self.layout.label(text=f'Successfully imported {imported_lods_count} LODs for {len(extracted_object.components)} components to Metadata.json ({len(extracted_object.components)-imported_lods_count} components seem to use full mesh as LOD).'),
-                title="LOD Import Complete",
+                lambda self, context: self.layout.label(text=f'Successfully extracted {imported_lods_count} LODs for {len(extracted_object.components)} components to Metadata.json ({len(extracted_object.components)-imported_lods_count} components seem to use full mesh as LOD).'),
+                title="LOD Extraction Complete",
                 icon='INFO'
             )
 

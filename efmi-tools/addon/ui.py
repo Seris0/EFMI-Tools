@@ -536,11 +536,11 @@ class EFMI_ExtractFrameData(bpy.types.Operator):
 
 class EFMI_ImportLODData(bpy.types.Operator):
     """
-    Import object LoDs from frame dump
+    Extract object LoDs from frame dump
     """
     bl_idname = "efmi_tools.extract_lod_data"
-    bl_label = "Import LoDs From Dump"
-    bl_description = "Import object LoDs from frame dump"
+    bl_label = "Extract LoDs From Dump"
+    bl_description = "Extract object LoDs from Open World frame dump and store them in Metadata.json"
 
     def execute(self, context):
         try:
