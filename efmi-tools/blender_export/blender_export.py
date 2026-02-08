@@ -170,13 +170,13 @@ class ModExporter:
         print(f'Merged object build time: {time.time() - start_time :.3f}s ({self.merged_object.vertex_count} vertices, {self.merged_object.index_count} indices)')
         return object_merger.merged_object
 
-    def build_data_buffers(self, merged_object, component_id = -1):
+    def build_data_buffers(self, merged_object: MergedObject, component_id = -1):
         start_time = time.time()
 
         global data_models
         data_model = data_models['EFMI']
 
-        buffers_format = {}
+        buffers_format: Dict[str, BufferLayout] = {}
         if self.extracted_object.export_format is not None and len(self.extracted_object.export_format) > 0:
             for buffer_name, buffer_layout in self.extracted_object.export_format.items():
                 buffers_format[buffer_name] = buffer_layout.get_layout()
@@ -200,6 +200,13 @@ class ModExporter:
             
         if merged_object.object is not None:
 
+            if merged_object.vertex_count > 65536:
+                ib_layout = buffers_format.get(f'Component{component_id}_IB', None)
+                ib_buffer_semantic = ib_layout.get_element(Semantic.Index)
+                ib_buffer_semantic.format = DXGIFormat.R32_UINT
+                ib_buffer_semantic.stride = ib_buffer_semantic.format.byte_width * 3
+                ib_layout.stride = ib_buffer_semantic.stride
+
             buffers, vertex_count = data_model.get_data(
                 self.context, 
                 self.cfg.component_collection, 
@@ -212,7 +219,6 @@ class ModExporter:
             
             self.buffers.update(buffers)
 
-            
             lod_meshes = self.extracted_object.components[component_id].lods or []
             for lod_mesh in lod_meshes:
                 vb2 = self.buffers.get(f'Component{component_id}_VB2', None)
