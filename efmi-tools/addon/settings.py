@@ -165,7 +165,7 @@ class EFMI_Settings(bpy.types.PropertyGroup):
         name="Geometry Matcher Error Threshold",
         description="Similarity percentage required for LoD object to pass the check",
         default=90,
-        min=75,
+        min=70,
         max=100,
         precision=0,
         subtype='PERCENTAGE',
