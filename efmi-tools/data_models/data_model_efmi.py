@@ -47,7 +47,7 @@ class DataModelEFMI(DataModel):
             # Reshape flat array [[0,0,0],[0,0,0]] to [[0,0,0,1],[0,0,0,1]]
             AbstractSemantic(Semantic.Tangent, 0): [lambda data: self.converter_resize_second_dim(data, 4, fill=1)],
             # Normalize weights to 8-bit values, skip sanitizing since it's already done by DataExtractor
-            # AbstractSemantic(Semantic.Blendweight, 0): [lambda data: self.converter_normalize_wights_8bit(data, sanitize_weights=False)],
+            AbstractSemantic(Semantic.Blendweight, 0): [lambda data: self.normalize_weights(data, sanitize=False, quantize_to='float16')],
         }
         self.format_encoders = {
             # Reshape flat array [0,1,2,3,4,5] to [[0,1,2],[3,4,5]]
