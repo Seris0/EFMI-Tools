@@ -49,9 +49,9 @@ All fields and actions of the plugin have basic tooltips. Refer to [Modder Guide
 ## Resources
 
 - [XXMI Launcher](https://github.com/SpectrumQT/XXMI-Launcher)
-- [EFMI GitHub](https://github.com/SpectrumQT/EFMI) ([Mirror: Gamebanana](https://gamebanana.com/tools/21846))
-- [EFMI Tools GitHub (you're here)] ([Mirror: Gamebanana](https://gamebanana.com/tools/21847))
-- [Arknights: Endfield Mods - Gamebanana](https://gamebanana.com/games/21842)
+- [EFMI GitHub](https://github.com/SpectrumQT/EFMI-Package) ([Mirror: GameBanana](https://gamebanana.com/tools/21846))
+- [EFMI Tools GitHub (you're here)] ([Mirror: GameBanana](https://gamebanana.com/tools/21847))
+- [Arknights: Endfield Mods - GameBanana](https://gamebanana.com/games/21842)
 - [AGMF Discord Modding Community](https://discord.com/invite/agmf)
 
 ## License
