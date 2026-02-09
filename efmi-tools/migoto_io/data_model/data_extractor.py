@@ -98,8 +98,12 @@ class BlenderDataExtractor:
 
             if export_semantic.extract_format is not None:
                 # Export format has specified extraction format, lets hope they know what they're doing
-                proxy_semantic.format = export_semantic.extract_format
-                proxy_semantic.stride = export_semantic.extract_format.byte_width
+                if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweight]:
+                    proxy_semantic.stride = export_semantic.extract_format.byte_width * proxy_semantic.get_num_values()
+                    proxy_semantic.format = export_semantic.extract_format
+                else:
+                    proxy_semantic.format = export_semantic.extract_format
+                    proxy_semantic.stride = export_semantic.extract_format.byte_width
             elif export_format.dxgi_type in [DXGIType.UNORM16, DXGIType.UNORM8, DXGIType.SNORM16, DXGIType.SNORM8]:
                 # Formats UNORM16, UNORM8, SNORM16 and SNORM8 cannot be directly exported and require conversion
                 if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweight]:
