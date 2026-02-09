@@ -480,83 +480,78 @@ class DataModel:
         if abstract_semantic not in converters.keys():
             converters[abstract_semantic] = []
         converters[abstract_semantic].insert(0, converter)
-
+            
     @staticmethod
-    def normalize_weights(weights: numpy.ndarray, sanitize=True, quantize_to=None, eps=1e-12):
+    def converter_normalize_weights(weights: numpy.ndarray, sanitize=True, dtype=numpy.dtype):
         """
-        Normalize per-vertex weights so each row sums to 1.0.
-        Optionally simulate quantization and redistribute error according to precision loss factor = frac / integer_part.
-
-        quantize_to:
-            None        -> pure float normalize
-            'float16'   -> simulate float16 precision
-            int (N)     -> quantize to N discrete steps (i.e. 255, 65535)
+        Normalizes 2-dim array of per-vertex float32 weights to uint8 (0-255 range) or uint16 (0-65535 range)
+        Precision error caused by float truncation is distributed according to precision loss factor
+        Precision loss factor is calculated as (weight_float_part / weight_integer_part)
+        Weights with bigger precision loss factors are getting 1's from total precision error value
         """
 
-        weights = weights.astype(numpy.float64, copy=True)
+        # Detect quantization target
+        if dtype == numpy.uint8:
+            container_max = 255
+        elif dtype == numpy.uint16:
+            container_max = 65535
+        else:
+            raise ValueError(f'Cannot normalize to dtype {dtype} (not supported)')
+
+        # Step 1: Normalize weights with 32-bit precision
 
         # Replace any non-float weight values with zeroes
         if sanitize:
             weights = numpy.nan_to_num(weights, nan=0.0, posinf=0.0, neginf=0.0)
-            weights[weights < 0.0] = 0.0
+        # Ignore weights below minimal precision
+        weights[weights < 1/container_max] = 0.0
+        # Calculate total weights for each vertex
+        weight_sums = weights.sum(axis=1, keepdims=True)
+        # Weight vertices without weights (with zero sum) to the first VG
+        zero_sums_idx = numpy.where(weight_sums <= 0)[0]
+        if len(zero_sums_idx) > 0:
+            weights[zero_sums_idx, 0] = 1.0
+            weight_sums[zero_sums_idx] = 1.0
+        # Normalize weights with 32-bit precision
+        weights /= weight_sums
 
-        sums = weights.sum(axis=1, keepdims=True)
-        zero_mask = (sums == 0)
-        if numpy.any(zero_mask):
-            weights[zero_mask, 0] = 1.0
-            sums[zero_mask] = 1.0
+        # Step 2: Normalize weights with target precision
 
-        # Normalize float
-        weights /= sums
+        scaled = weights * container_max
+        truncated = scaled.astype(dtype)
 
-        if quantize_to is None:
-            return weights.astype(numpy.float32)
+        # Step 3: Calculate precision error
 
-        # Quantize
-        if quantize_to == "float16":
-            normalized_weights = weights.astype(numpy.float16).astype(numpy.float64)
-            frac = numpy.abs(weights - normalized_weights)
-            base = normalized_weights
-        else:
-            MAX = int(quantize_to)
-            scaled = weights * MAX
-            base = numpy.floor(scaled)
-            frac = scaled - base
-            normalized_weights = base / MAX
+        absolute_loss = scaled - truncated
+        precision_error = container_max - truncated.sum(axis=1, keepdims=True)
 
-        # Calculate precision error
-        error = 1.0 - normalized_weights.sum(axis=1)
+        # Step 4: Calculate precision loss factor
 
-        # Calculate precision loss factor
-        loss_factor = frac / numpy.maximum(base, eps)
+        loss_factor = numpy.divide(absolute_loss, truncated, out=numpy.zeros_like(absolute_loss), where=truncated != 0)
 
-        # Distribute precision error
-        order = numpy.argsort(loss_factor, axis=1)[:, ::-1]
-        rows = numpy.arange(normalized_weights.shape[0])[:, None]
+        # Step 5: Distribute precision error to weights with highest precision loss factor
 
-        # Number of corrections needed per row (quantized steps)
-        if quantize_to == "float16":
-            # Distribute as continuous correction
-            corr = error[:, None] * (loss_factor / numpy.maximum(loss_factor.sum(axis=1, keepdims=True), eps))
-            normalized_weights += corr
-        else:
-            MAX = int(quantize_to)
-            steps = numpy.round(error * MAX).astype(int)
-            steps = numpy.maximum(steps, 0)
+        # Sort indices descending by loss factor per row
+        sort_idx = numpy.argsort(-loss_factor, axis=1)
+        # Prepare correction array (broadcast indices for error distribution)
+        row_idx = numpy.repeat(numpy.arange(weights.shape[0])[:, None], weights.shape[1], axis=1)
+        col_idx = sort_idx
+        # Generate offsets for distributing +1s
+        # For each row, we only add to the first `precision_error` indices
+        mask = numpy.arange(weights.shape[1])[None, :] < precision_error
+        # Flatten indices and mask to apply +1
+        flattened_row = row_idx[mask]
+        flattened_col = col_idx[mask]
+        # Copy truncated array and apply correction
+        normalized_weights = truncated.copy()
+        numpy.add.at(normalized_weights, (flattened_row, flattened_col), 1)
 
-            mask = numpy.arange(normalized_weights.shape[1]) < steps[:, None]
-            base[rows, order] += mask.astype(numpy.int64)
-            normalized_weights = base / MAX
-
-        # Final renormalize (just to be safe)
-        normalized_weights /= normalized_weights.sum(axis=1, keepdims=True)
-
-        return normalized_weights.astype(numpy.float32)
+        return normalized_weights
     
     @staticmethod
-    def converter_normalize_wights(weights: numpy.ndarray, sanitize_weights=True):
+    def converter_normalize_wights_8bit(weights: numpy.ndarray, sanitize_weights=True):
         """
-        Normalizes 2-dim array of per-vertex float32 weights to uint8 (0-255 range) or uint16 (0-65535 range)
+        Normalizes 2-dim array of per-vertex float32 weights to uint8 (0-255 range)
         Precision error caused by float truncation is distributed according to precision loss factor
         Precision loss factor is calculated as (weight_float_part / weight_integer_part)
         Weights with bigger precision loss factors are getting 1's from total precision error value

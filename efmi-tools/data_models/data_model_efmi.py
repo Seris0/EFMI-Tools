@@ -46,14 +46,12 @@ class DataModelEFMI(DataModel):
         self.semantic_encoders = {
             # Reshape flat array [[0,0,0],[0,0,0]] to [[0,0,0,1],[0,0,0,1]]
             AbstractSemantic(Semantic.Tangent, 0): [lambda data: self.converter_resize_second_dim(data, 4, fill=1)],
-            # Normalize weights to 8-bit values, skip sanitizing since it's already done by DataExtractor
-            AbstractSemantic(Semantic.Blendweight, 0): [lambda data: self.normalize_weights(data, sanitize=False, quantize_to='float16')],
         }
         self.format_encoders = {
+            # Normalize weights to 16-bit values, skip sanitizing since it's already done by DataExtractor
+            AbstractSemantic(Semantic.Blendweight, 0): [lambda data: self.converter_normalize_weights(data, sanitize=False, dtype=numpy.uint16)],
             # Reshape flat array [0,1,2,3,4,5] to [[0,1,2],[3,4,5]]
             AbstractSemantic(Semantic.Index): [lambda data: self.converter_reshape_second_dim(data, 3)],
-            # Trim color array [[1,1,0,0],[1,1,0,0]] to [[1,1],[1,1]]
-            # AbstractSemantic(Semantic.Color, 1): [lambda data: self.converter_resize_second_dim(data, 2)],
         }
     
     def set_data(self, 
