@@ -381,11 +381,11 @@ class NumpyBuffer:
         if semantic_converters is not None:
             for data_converter in semantic_converters:
                 data = data_converter(data)
-        if current_semantic.format != semantic.format:
-            data = current_semantic.format.type_encoder(data)
         if format_converters is not None:
             for data_converter in format_converters:
                 data = data_converter(data)
+        if data.dtype != current_semantic.format.numpy_base_type:
+            data = current_semantic.format.type_encoder(data)
         try:
             self.set_field(current_semantic.get_name(), data)
         except Exception as e:
