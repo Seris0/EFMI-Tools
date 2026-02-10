@@ -27,8 +27,8 @@ from .text_formatter import TextFormatter
 from ..libs.jinja2 import Environment, FileSystemLoader, TemplateSyntaxError, UndefinedError
 
 
-chached_template: Optional[str] = None
-chached_template_string: Optional[object] = None
+chached_template: Optional[Environment] = None
+chached_template_string: Optional[str] = None
 
 
 @dataclass
@@ -149,16 +149,21 @@ class IniMaker:
         else:
             start_time = time.time()
             try:
+                # Include `../../templates` to j2 template scope
                 templates_path = Path(os.path.realpath(__file__)).parent.parent / 'templates'
                 search_paths = [str(templates_path)]
+                # Include custom template's directory to j2 template scope
                 if cfg.use_custom_template and cfg.custom_template_source != 'INTERNAL':
                     custom_path = resolve_path(cfg.custom_template_path).parent
                     if custom_path.exists():
                         search_paths.append(str(custom_path))
+                # Initialize template
                 env = Environment(loader=FileSystemLoader(search_paths))
                 template = env.from_string(template_string)
+                # Cache template
                 chached_template = template
                 chached_template_string = template_string
+
             except TemplateSyntaxError as e:
                 template_lines = template_string.split('\n')
                 template_fragment = ''
@@ -173,6 +178,7 @@ class IniMaker:
                                  f'Line Number: {e.lineno} (actual cause may be located above this line)\n\n'
                                  f'Template Fragment:\n'
                                  f'{template_fragment}')
+            
             print(f'Ini template caching time: {time.time() - start_time :.3f}s')
 
         try:
