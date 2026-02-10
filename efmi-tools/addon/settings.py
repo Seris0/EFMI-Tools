@@ -154,6 +154,16 @@ class EFMI_Settings(bpy.types.PropertyGroup):
     # LOD Import
     ########################################
 
+    geo_matcher_method: bpy.props.EnumProperty(
+        name="Method",
+        description="Controls which method is used for geometry-based LoDs search",
+        items=[
+            ('VOXEL', 'Voxel Matching (Determenistic)', 'Samples mesh as voxel grid of given size'),
+            ('POINT_CLOUD', 'Point Cloud Matching (Random)', 'Uniformly samples random points on a mesh surface using triangle areas.'),
+        ],
+        default='VOXEL',
+    ) # type: ignore
+
     import_matched_lod_objects: BoolProperty(
         name="Import LoDs In Blender (just to see what was picked)",
         description="Import matched LoDs in Blender to manually check what automated system selected",
@@ -167,28 +177,10 @@ class EFMI_Settings(bpy.types.PropertyGroup):
         subtype="DIR_PATH",
     ) # type: ignore
 
-    geo_matcher_error_threshold: FloatProperty(
-        name="Geometry Matcher Error Threshold",
-        description="Similarity percentage required for LoD object to pass the check",
-        default=90,
-        min=70,
-        max=100,
-        precision=0,
-        subtype='PERCENTAGE',
-    ) # type: ignore
-
     skip_lods_below_error_threshold: BoolProperty(
         name="Skip LoDs Below Error Threshold",
         description="Skip LoD with similarity percentage below Geometry Matcher Error Threshold instead of aborting LoDs extraction process.",
         default=False,
-    ) # type: ignore
-
-    geo_matcher_sample_size: IntProperty(
-        name="Geometry Matcher Sample Size",
-        description="Number of uniform geometry samples used for LoD mesh matching",
-        default=500,
-        min=250,
-        max=5000,
     ) # type: ignore
 
     geo_matcher_sensivity: FloatProperty(
@@ -200,8 +192,78 @@ class EFMI_Settings(bpy.types.PropertyGroup):
         precision=2,
     ) # type: ignore
 
+    # Geo Matcher Voxel
+
+    geo_matcher_voxel_size: FloatProperty(
+        name="Geometry Matcher Voxel Size",
+        description="Controls into how many voxels meshes will be split. The less the size, the more the voxels, the higher precision and the longer calculation time",
+        default=0.01,
+        min=0.005,
+        max=0.1,
+        precision=2,
+    ) # type: ignore
+
+    geo_matcher_voxel_error_threshold: FloatProperty(
+        name="Geometry Matcher Error Threshold",
+        description="Similarity percentage required for LoD object to pass the check",
+        default=55,
+        min=25,
+        max=100,
+        precision=0,
+        subtype='PERCENTAGE',
+    ) # type: ignore
+
+    # Geo Matcher Point Cloud
+
+    geo_matcher_sample_size: IntProperty(
+        name="Geometry Matcher Sample Size",
+        description="Number of uniform geometry samples used for LoD mesh matching",
+        default=1000,
+        min=500,
+        max=5000,
+    ) # type: ignore
+
+    geo_matcher_error_threshold: FloatProperty(
+        name="Geometry Matcher Error Threshold",
+        description="Similarity percentage required for LoD object to pass the check",
+        default=85,
+        min=50,
+        max=100,
+        precision=0,
+        subtype='PERCENTAGE',
+    ) # type: ignore
+
+    # Prefilter
+
+    geo_matcher_prefilter_voxel_size: FloatProperty(
+        name="Geometry Matcher Prefilter Voxel Size",
+        description="Controls into how many voxels meshes will be split during prefilter pass. The less the size, the more the voxels, the higher precision and the longer calculation time",
+        default=0.05,
+        min=0.01,
+        max=0.2,
+        precision=2,
+    ) # type: ignore
+
+    geo_matcher_prefilter_sample_size: IntProperty(
+        name="Geometry Matcher Prefilter Sample Size",
+        description="Number of uniform geometry samples used for LoD mesh matching during prefilter pass",
+        default=250,
+        min=100,
+        max=2500,
+    ) # type: ignore
+
+    geo_matcher_prefilter_candidates_count: IntProperty(
+        name="Geometry Matcher Prefilter Candidates Count",
+        description="Number of pre-filtered candidates satisfying specified prefilter parameters. The more the count, the longer calculation time",
+        default=5,
+        min=1,
+        max=10,
+    ) # type: ignore
+
+    # VG Matcher
+
     vg_matcher_candidates_count: IntProperty(
-        name="VG Matcher Max Candidates",
+        name="Vertex Groups Matcher Candidates Count",
         description="Number of pre-filtered candidates based on centroid distance used for Vertex Groups matching",
         default=3,
         min=1,

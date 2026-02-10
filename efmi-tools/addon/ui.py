@@ -219,18 +219,18 @@ class EFMI_TOOLS_PT_SIDEBAR(bpy.types.Panel):
 
         layout.row()
 
-        layout.row().prop(cfg, 'geo_matcher_error_threshold')
+        if cfg.geo_matcher_method == 'VOXEL':
+            layout.row().prop(cfg, 'geo_matcher_voxel_error_threshold')
+        elif cfg.geo_matcher_method == 'POINT_CLOUD':
+            layout.row().prop(cfg, 'geo_matcher_error_threshold')
 
         layout.row()
-
-
-        layout.row().operator(EFMI_ImportLODData.bl_idname)
 
 
 class EFMI_TOOLS_PT_SidePanelAdvancedLodsExtraction(bpy.types.Panel):
     bl_label = "Advanced"
     bl_parent_id = "EFMI_TOOLS_PT_SIDEBAR"
-    # bl_options = {'DEFAULT_CLOSED'}
+    bl_options = {'DEFAULT_CLOSED'}
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "EFMI Tools"
@@ -245,18 +245,48 @@ class EFMI_TOOLS_PT_SidePanelAdvancedLodsExtraction(bpy.types.Panel):
         layout = self.layout
         cfg = context.scene.efmi_tools_settings
 
+        layout.row().prop(cfg, 'import_matched_lod_objects')
         layout.row().prop(cfg, 'skip_lods_below_error_threshold')
 
-        layout.row().prop(cfg, 'import_matched_lod_objects')
-
         layout.row()
 
-        layout.row().prop(cfg, 'geo_matcher_sample_size')
+        layout.row().prop(cfg, 'geo_matcher_method')
         layout.row().prop(cfg, 'geo_matcher_sensivity')
+        
+        if cfg.geo_matcher_method == 'VOXEL':
+            layout.row().prop(cfg, 'geo_matcher_voxel_size')
+        elif cfg.geo_matcher_method == 'POINT_CLOUD':
+            layout.row().prop(cfg, 'geo_matcher_sample_size')
 
         layout.row()
+        
+        if cfg.geo_matcher_method == 'VOXEL':
+            layout.row().prop(cfg, 'geo_matcher_prefilter_voxel_size')
+        elif cfg.geo_matcher_method == 'POINT_CLOUD':
+            layout.row().prop(cfg, 'geo_matcher_prefilter_sample_size')
+        layout.row().prop(cfg, 'geo_matcher_prefilter_candidates_count')
 
         layout.row().prop(cfg, 'vg_matcher_candidates_count')
+
+
+class EFMI_TOOLS_PT_SidePanelLodsExtractionFooter(bpy.types.Panel):
+    bl_label = "Extract"
+    bl_parent_id = "EFMI_TOOLS_PT_SIDEBAR"
+    # bl_options = {'DEFAULT_CLOSED'}
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "EFMI Tools"
+    bl_options = {'HIDE_HEADER'}
+    bl_order = 98
+
+    @classmethod
+    def poll(cls, context):
+        cfg = context.scene.efmi_tools_settings
+        return cfg.tool_mode == 'EXTRACT_LOD_DATA'
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.row().operator(EFMI_ImportLODData.bl_idname)
 
 
 class EFMI_TOOLS_PT_SidePanelPartialExport(bpy.types.Panel):

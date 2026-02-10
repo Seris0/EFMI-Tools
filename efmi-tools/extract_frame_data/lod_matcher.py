@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from operator import itemgetter
 from typing import Optional, Dict, Tuple
+from dataclasses import dataclass
 
 from ..migoto_io.data_model.byte_buffer import MigotoFormat
 from ..migoto_io.data_model.numpy_mesh import NumpyMesh, GeometryMatcher, VertexGroupsMatcher
@@ -11,20 +12,27 @@ from ..migoto_io.data_model.numpy_mesh import NumpyMesh, GeometryMatcher, Vertex
 from .output_builder import ObjectData
 
 
+@dataclass
 class LODMatcher:
-    def __init__(
-        self,
-        geo_matcher: GeometryMatcher,
-        vg_matcher: VertexGroupsMatcher,
-        full_model_path: Path,
-        lod_model_path: Optional[Path] = None,
-        lod_objects: Optional[Dict[str, ObjectData]] = None,
-    ):
-        self.geo_matcher = geo_matcher
-        self.vg_matcher = vg_matcher
-        self.full_model_path = full_model_path
-        self.lod_model_path = lod_model_path
-        self.lod_objects: Optional[Dict[str, ObjectData]] = lod_objects
+    full_model_path: Path
+
+    geo_matcher_method: str
+    geo_matcher_sensivity: float
+    geo_matcher_voxel_size: float
+    geo_matcher_sample_size: int
+
+    geo_matcher_prefilter_voxel_size: float
+    geo_matcher_prefilter_sample_size: int
+    geo_matcher_prefilter_candidates_count: int
+    vg_matcher_candidates_count: int
+
+    vg_matcher: Optional[VertexGroupsMatcher] = None
+    lod_model_path: Optional[Path] = None
+    lod_objects: Optional[Dict[str, ObjectData]] = None
+
+    def __post_init__(self):
+        self.geo_matcher = GeometryMatcher(method=self.geo_matcher_method, sensivity=self.geo_matcher_sensivity)
+        self.vg_matcher = VertexGroupsMatcher(candidates_count=self.vg_matcher_candidates_count)
 
         self.full_components: Dict[str, str] = {}
         self.lod_components: Dict[str, str] = {}
@@ -120,19 +128,14 @@ class LODMatcher:
             )
 
     def match_by_geometry(self):
-        for full_name, full_hash in self.full_components.items():
+        
+        def calculate_similarities(lod_hash_to_names):
 
-            if full_hash in self.matched:
-                continue
-
-            full_mesh = self.full_meshes[full_name]
             similarities = {}
 
-            t_geo = time.time()
-
-            for lod_hash, lod_name in self.lod_hash_to_name.items():
-                if self.lod_meshes[lod_name] is None:
-                    continue
+            for lod_hash, lod_name in lod_hash_to_names.items():
+                # if self.lod_meshes[lod_name] is None:
+                #     continue
                 similarity = self.geo_matcher.calculate_similarity(
                     full_mesh, self.lod_meshes[lod_name]
                 )
@@ -141,29 +144,93 @@ class LODMatcher:
             similarities = dict(
                 sorted(similarities.items(), key=itemgetter(1), reverse=True)
             )
-            t_geo = time.time() - t_geo
 
-            best_lod_hash, best_similarity = next(iter(similarities.items()))
-            best_lod_name = self.lod_hash_to_name.pop(best_lod_hash)
+            return similarities
+        
+        for full_name, full_hash in self.full_components.items():
 
-            self.matched[full_hash] = best_lod_name
+            if full_hash in self.matched:
+                raise ValueError(f'Duplicate component vb0 hash {full_hash} found in Metadata.json!')
+
+            full_mesh = self.full_meshes[full_name]
+            
+            best_lod_hash, best_similarity = None, None
+
+            # Try to get LoD by full model hash
+
+            best_lod_name = self.lod_hash_to_name.pop(full_hash, None)
+
+            if best_lod_name is not None:
+
+                similarity = self.geo_matcher.calculate_similarity(
+                    self.full_meshes[full_name],
+                    self.lod_meshes[best_lod_name],
+                )
+
+                print(
+                    f'{full_name} {full_hash} = {best_lod_name} {full_hash} '
+                    f'(by hash from {len(self.lod_hash_to_name)} candidates) '
+                    f'similarity={similarity:.2f}'
+                )
+                
+                best_similarity = similarity
+                best_lod_hash = full_hash
+                t_geo = 0
+
+            else:
+
+                # Try to get LoD by geometry matching
+
+                t_geo = time.time()
+
+                self.geo_matcher.samples_count = self.geo_matcher_prefilter_sample_size
+                self.geo_matcher.voxel_size = self.geo_matcher_prefilter_voxel_size
+
+                prefiltered_similarities = calculate_similarities(self.lod_hash_to_name)
+
+                prefiltered_lod_hashes = list(prefiltered_similarities.keys())[:min(self.geo_matcher_prefilter_candidates_count, len(prefiltered_similarities))]
+
+                lod_hash_to_names = {hash: self.lod_hash_to_name[hash] for hash in prefiltered_lod_hashes}
+                
+                self.geo_matcher.samples_count = self.geo_matcher_sample_size
+                self.geo_matcher.voxel_size = self.geo_matcher_voxel_size
+
+                similarities = calculate_similarities(lod_hash_to_names)
+
+                t_geo = time.time() - t_geo
+
+                best_lod_hash, best_similarity = next(iter(similarities.items()))
+                best_lod_name = self.lod_hash_to_name.pop(best_lod_hash)
+
+                print(
+                    f'{full_name} {full_hash} = {best_lod_name} {best_lod_hash} {len(self.lod_meshes[best_lod_name].vertex_buffer)}'
+                    f'(by geo from {len(self.lod_hash_to_name)} candidates) '
+                    f'similarity={best_similarity:.2f}%, '
+                )
+
+            self.matched[full_hash] = (best_lod_name, best_lod_hash, best_similarity)
+                
+            # Match VGs
 
             t_vg = time.time()
+
             vg_map = self.vg_matcher.match_vertex_groups(
                 full_mesh,
                 self.lod_meshes[best_lod_name],
             )
-            self.vg_maps[full_hash] = (best_lod_hash, vg_map, best_similarity)
+
             t_vg = time.time() - t_vg
+
+            # Save result
 
             remapped = sum(1 for k, v in vg_map.items() if k != v)
 
-            print(
-                f'{full_name} {full_hash} = {best_lod_name} {best_lod_hash} {len(self.lod_meshes[best_lod_name].vertex_buffer)}'
-                f'(by geo from {len(self.lod_hash_to_name)} candidates) '
-                f'similarity={best_similarity:.2f}%, '
-                f'remapped VGs={remapped}/{len(vg_map) or 1}'
-            )
+            if remapped > 0:
+                self.vg_maps[full_hash] = (best_lod_hash, vg_map)
+                print(f'remapped VGs={remapped}/{len(vg_map) or 1}')
+            else:
+                print(f'all {len(vg_map)} VGs matched (LoD uses full skeleton)')
+
             print(f'    LoD meshes match time: {t_geo:.03f}s')
             print(f'    Vertex Groups match time: {t_vg:.03f}s')
 
@@ -177,7 +244,7 @@ class LODMatcher:
         self.load_metadata()
         self.load_meshes()
 
-        self.match_by_hash()
+        # self.match_by_hash()
         self.match_by_geometry()
 
         print(f'Total processing time: {time.time() - t0:.03f}s')

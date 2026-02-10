@@ -1,7 +1,3 @@
-import io
-import copy
-import textwrap
-import math
 import numpy
 
 from typing import Union, List, Optional, Dict, Iterable
@@ -222,12 +218,21 @@ class VertexGroupsMatcher(ChamferMixin):
         return vg_ids, virtual_id
 
 
+@dataclass
 class GeometryMatcher(ChamferMixin):
-    def __init__(self, samples_count=5000, sensivity=0.5):
-        self.samples_count = samples_count
-        self.sensivity = sensivity
+    method: str = 'VOXEL'
+    sensivity: float = 0.5
+    voxel_size: float = 0.05
+    samples_count: int = 5000
 
     def calculate_similarity(self, mesh_a: NumpyMesh, mesh_b: NumpyMesh) -> float:
+        if self.method == 'VOXEL':
+            return self.calculate_similarity_voxel(mesh_a, mesh_b)
+        if self.method == 'POINT_CLOUD':
+            return self.calculate_similarity_point_cloud(mesh_a, mesh_b)
+        raise ValueError(f'Unknown geometry matching method {self.method}!')
+    
+    def calculate_similarity_point_cloud(self, mesh_a: NumpyMesh, mesh_b: NumpyMesh) -> float:
         """Calculates similarity between Mesh A and Mesh B.
         
         Algo is based on average Chamfer distance between uniformly sampled triangles.
@@ -270,5 +275,66 @@ class GeometryMatcher(ChamferMixin):
         c = r1 * r2
 
         sampled_points = a[:,None]*v0[tri_indices] + b[:,None]*v1[tri_indices] + c[:,None]*v2[tri_indices]
+
+        return sampled_points
+
+    def calculate_similarity_voxel(self, mesh_a, mesh_b):
+
+        points_a = self.voxel_sample_mesh(mesh_a, voxel_size=self.voxel_size)
+        points_b = self.voxel_sample_mesh(mesh_b, voxel_size=self.voxel_size)
+
+        if len(points_a) == 0 or len(points_b) == 0:
+            return 0.0
+
+        d_ab = self.calculate_min_distances(points_a, points_b)
+        d_ba = self.calculate_min_distances(points_b, points_a)
+
+        mean_ab = d_ab.mean()
+        mean_ba = d_ba.mean()
+
+        chamfer = 0.5 * (mean_ab + mean_ba)
+        asym = abs(mean_ab - mean_ba)
+
+        coverage_tol = float(self.voxel_size)
+        coverage = min(
+            numpy.mean(d_ab < coverage_tol),
+            numpy.mean(d_ba < coverage_tol)
+        )
+
+        raw = chamfer + 0.5 * asym
+
+        similarity = max(0.0, 1.0 - raw / float(self.sensivity))
+
+        similarity *= (0.7 + 0.3 * coverage)
+
+        return similarity * 100.0
+
+    def voxel_sample_mesh(self, mesh, voxel_size=0.05):
+        """
+        Deterministic voxel-grid sampling of mesh surface.
+        """
+        positions = mesh.get_data(Semantic.Position)
+        indices = mesh.get_data(Semantic.Index)
+
+        tris = positions[indices]  # (T,3,3)
+
+        # Sample triangle centers (cheap & deterministic)
+        tri_centers = tris.mean(axis=1)
+
+        # Normalize to unit bbox
+        center = tri_centers.mean(axis=0)
+        tri_centers = tri_centers - center
+
+        bbox = tri_centers.max(axis=0) - tri_centers.min(axis=0)
+        scale = numpy.linalg.norm(bbox)
+        if scale > 0:
+            tri_centers = tri_centers / scale
+
+        # Voxelize
+        vox = numpy.floor(tri_centers / voxel_size).astype(numpy.int32)
+
+        # Unique voxels
+        _, unique_idx = numpy.unique(vox, axis=0, return_index=True)
+        sampled_points = tri_centers[unique_idx]
 
         return sampled_points

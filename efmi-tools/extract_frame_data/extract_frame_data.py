@@ -330,58 +330,80 @@ def extract_frame_data(cfg, extract_lods=False):
     
         lod_matcher = LODMatcher(
             full_model_path=object_source_folder,
+
+            geo_matcher_method=cfg.geo_matcher_method,
+            geo_matcher_sensivity=cfg.geo_matcher_sensivity,
+            geo_matcher_voxel_size=cfg.geo_matcher_voxel_size,
+            geo_matcher_sample_size=cfg.geo_matcher_sample_size,
+            geo_matcher_prefilter_voxel_size=cfg.geo_matcher_prefilter_voxel_size,
+            geo_matcher_prefilter_sample_size=cfg.geo_matcher_prefilter_sample_size,
+            geo_matcher_prefilter_candidates_count=cfg.geo_matcher_prefilter_candidates_count,
+            vg_matcher_candidates_count=cfg.vg_matcher_candidates_count,
+
             lod_model_path=None,
             lod_objects=output_builder.objects,
-            geo_matcher=GeometryMatcher(samples_count=500),
-            vg_matcher=VertexGroupsMatcher(candidates_count=3),
         )
 
         lod_matcher.run()
 
         extracted_object = read_metadata(object_source_folder / 'Metadata.json')
-        imported_lods_count = 0
 
         imported_objects = []
 
         if cfg.import_matched_lod_objects:
             model = DataModelEFMI()
             model.unpack_normal = True
+
+        lods_count = 0
+        vg_maps_count = 0
     
         for component_id, component in enumerate(extracted_object.components):
-            (lod_vb0_hash, vg_map, best_similarity) = lod_matcher.vg_maps.get(component.vb0_hash, (None, None, None))
+
+            (lod_name, lod_vb0_hash, similarity) = lod_matcher.matched.get(component.vb0_hash, (None, None, None))
+
             if lod_vb0_hash is None:
                 continue
-            if component.lods is None:
-                component.lods = []
-            if component.vb0_hash != lod_vb0_hash:
-                imported_lods_count += 1
 
+            (vg_map_lod_vb0_hash, vg_map) = lod_matcher.vg_maps.get(component.vb0_hash, (None, None))
+
+            if component.vb0_hash == lod_vb0_hash and vg_map is None:
+                continue
+
+            lod = ExtractedObjectComponentLOD(vb0_hash=lod_vb0_hash, vg_map={})
+
+            lods_count += 1
+
+            if vg_map is not None:
+                vg_maps_count += 1
+                lod.vg_map = vg_map
+
+            # Import lod mesh for debug
             if cfg.import_matched_lod_objects:
-                # Import lod mesh for debug
-                lod_name = f'LOD mesh {lod_vb0_hash}' if lod_vb0_hash != component.vb0_hash else '(full mesh used as LOD)'
-                mesh = bpy.data.meshes.new(f'Component {component_id} {component.vb0_hash} {lod_name}')
+                lod_object_name = f'LOD mesh {lod_vb0_hash}' if lod_vb0_hash != component.vb0_hash else '(full mesh used as LOD)'
+                mesh = bpy.data.meshes.new(f'Component {component_id} {component.vb0_hash} {lod_object_name}')
                 obj = bpy.data.objects.new(mesh.name, mesh)
-                # global_matrix = axis_conversion(from_forward=axis_forward, from_up=axis_up).to_4x4()
-                # obj.matrix_world = global_matrix
-                mesh_name = lod_matcher.matched[component.vb0_hash]
-                matched_mesh: NumpyMesh = lod_matcher.lod_meshes.get(mesh_name, None) or lod_matcher.full_meshes.get(mesh_name, None)
+                matched_mesh: NumpyMesh = lod_matcher.lod_meshes[lod_name]
                 model.set_data(obj, mesh, matched_mesh.index_buffer, matched_mesh.vertex_buffer, None, mirror_mesh=cfg.mirror_mesh, mesh_scale=1.00, mesh_rotation=(0, 0, 0), import_tangent_data_to_attribute=False)
                 imported_objects.append(obj)
 
-            if best_similarity < cfg.geo_matcher_error_threshold and not cfg.skip_lods_below_error_threshold:
+            error_threshold = cfg.geo_matcher_voxel_error_threshold if cfg.geo_matcher_method == 'VOXEL' else cfg.geo_matcher_error_threshold
+            if similarity < error_threshold and not cfg.skip_lods_below_error_threshold:
                 raise ConfigError('lod_frame_dump_folder', dedent(f"""
-                    Best matching LoD for Component {component_id} has {best_similarity:.2f}% similarity!
-                    It is below configured {cfg.geo_matcher_error_threshold:.2f}% Geometry Matcher Error Threshold.
+                    Best matching LoD for Component {component_id} has {similarity:.2f}% similarity!
+                    It is below configured {error_threshold:.2f}% Geometry Matcher Error Threshold.
                     If it's not too far off, try to lower threshold. Otherwise either dump is missing some data or search engine fails to handle it.
                 """))
-            print(f'LOD Found: Component {component_id} {component.vb0_hash} matches LOD {lod_vb0_hash} ({best_similarity:.2f}% similarity)')
+            
+            print(f'LOD Found: Component {component_id} {component.vb0_hash} matches LOD {lod_vb0_hash} ({similarity:.2f}% similarity)')
 
             # Skip LoD import if it already exists in Metadata.json
             if any(obj.vb0_hash == lod_vb0_hash for obj in component.lods):
                 print(f'LOD {lod_vb0_hash} import skipped (already in Metdata.json)')
                 continue
 
-            component.lods.append(ExtractedObjectComponentLOD(vb0_hash=lod_vb0_hash, vg_map=vg_map))
+            if component.lods is None:
+                component.lods = []
+            component.lods.append(lod)
 
         col = new_collection(f'{object_source_folder.stem} LoDs (for view only)')
         for obj in imported_objects:
@@ -390,15 +412,15 @@ def extract_frame_data(cfg, extract_lods=False):
         with open(object_source_folder / f'Metadata.json', 'w') as f:
             f.write(extracted_object.as_json())
 
-        if imported_lods_count < len(extracted_object.components) / 2:
+        if lods_count < len(extracted_object.components) / 2:
             bpy.context.window_manager.popup_menu(
-                lambda self, context: self.layout.label(text=f'Imported LoDs count {imported_lods_count} is suspiciously low for {len(extracted_object.components)} components total. Please try to create another Open World dump with being further away from the character in case you get LoD issues with exported mod.'),
+                lambda self, context: self.layout.label(text=f'Imported LoDs count {lods_count} is suspiciously low for {len(extracted_object.components)} components total. Please try to create another Open World dump with being further away from the character in case you get LoD issues with exported mod.'),
                 title="LOD Extraction Warning",
                 icon='WARNING_LARGE'
             )
         else:
             bpy.context.window_manager.popup_menu(
-                lambda self, context: self.layout.label(text=f'Successfully extracted {imported_lods_count} LODs for {len(extracted_object.components)} components to Metadata.json ({len(extracted_object.components)-imported_lods_count} components seem to use full mesh as LOD).'),
+                lambda self, context: self.layout.label(text=f'Successfully extracted {lods_count} LODs for {len(extracted_object.components)} components to Metadata.json ({len(extracted_object.components)-lods_count} components seem to use full mesh as LOD).'),
                 title="LOD Extraction Complete",
                 icon='INFO'
             )

@@ -37,7 +37,7 @@ class ModExporter:
     skeleton_type: SkeletonType
     merged_object: MergedObject
     buffers: Dict[str, NumpyBuffer] = {}
-    textures: List[Texture] = {}
+    textures: List[Texture] = []
     ini: IniMaker
 
     def __init__(self, context, cfg, excluded_buffers: List[str]):
@@ -140,6 +140,9 @@ class ModExporter:
             self.write_files()
         except Exception as e:
             raise ConfigError('mod_output_folder', f'Failed to write files to mod folder:\n{e}')
+            
+        self.buffers = {}
+        self.textures = []
 
         print(f'Total mod export time: {time.time() - start_time :.3f}s')
 
@@ -221,6 +224,8 @@ class ModExporter:
 
             lod_meshes = self.extracted_object.components[component_id].lods or []
             for lod_mesh in lod_meshes:
+                if len(lod_mesh.vg_map) == 0:
+                    continue
                 vb2 = self.buffers.get(f'Component{component_id}_VB2', None)
                 if vb2 is not None:
                     indices = vb2.get_field(Semantic.Blendindices)
