@@ -24,11 +24,11 @@ from .metadata_collector import Version, ModInfo
 from .texture_collector import Texture
 from .text_formatter import TextFormatter
 
-from ..libs.jinja2 import Template, TemplateSyntaxError, UndefinedError
+from ..libs.jinja2 import Environment, FileSystemLoader, TemplateSyntaxError, UndefinedError
 
 
 chached_template: Optional[str] = None
-chached_template_string: Optional[Template] = None
+chached_template_string: Optional[object] = None
 
 
 @dataclass
@@ -149,14 +149,25 @@ class IniMaker:
         else:
             start_time = time.time()
             try:
-                template = Template(template_string)
+                templates_path = Path(os.path.realpath(__file__)).parent.parent / 'templates'
+                search_paths = [str(templates_path)]
+                if cfg.use_custom_template and cfg.custom_template_source != 'INTERNAL':
+                    custom_path = resolve_path(cfg.custom_template_path).parent
+                    if custom_path.exists():
+                        search_paths.append(str(custom_path))
+                env = Environment(loader=FileSystemLoader(search_paths))
+                template = env.from_string(template_string)
                 chached_template = template
                 chached_template_string = template_string
             except TemplateSyntaxError as e:
                 template_lines = template_string.split('\n')
                 template_fragment = ''
-                for i in range(e.lineno-4, e.lineno+2):
-                    template_fragment += f'{i}: {template_lines[i]}\n'
+                start_line = max(0, e.lineno - 4)
+                end_line = min(len(template_lines), e.lineno + 2)
+                
+                for i in range(start_line, end_line):
+                    template_fragment += f'{i+1}: {template_lines[i]}\n'
+                    
                 raise ValueError(f'Ini Template syntax error:\n\n'
                                  f'{e.message}\n\n'
                                  f'Line Number: {e.lineno} (actual cause may be located above this line)\n\n'
