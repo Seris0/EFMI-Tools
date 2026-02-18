@@ -92,19 +92,6 @@ class TextureAssigner:
             if not id_match:
                 continue
 
-            t0_entries = slots.get("ps-t0", [])
-            if not t0_entries:
-                continue
-
-            t0_hashes = []
-            for entry in t0_entries:
-                h = re.match(r'^([a-f0-9]+)-vs=', entry, re.IGNORECASE)
-                if h:
-                    t0_hashes.append(h.group(1).lower())
-
-            if not t0_hashes:
-                continue
-
             t10_t19_counts = {}
             for slot_name, entries in slots.items():
                 if not re.match(r'^ps-t1[0-9]$', slot_name):
@@ -114,6 +101,18 @@ class TextureAssigner:
                     if h:
                         key = h.group(1).lower()
                         t10_t19_counts[key] = t10_t19_counts.get(key, 0) + 1
+
+            t0_entries = slots.get("ps-t0", [])
+            t0_hashes = []
+            for entry in t0_entries:
+                h = re.match(r'^([a-f0-9]+)-vs=', entry, re.IGNORECASE)
+                if h:
+                    t0_hashes.append(h.group(1).lower())
+            if not t0_hashes:
+                if not t10_t19_counts:
+                    continue
+                t0_hashes = list(t10_t19_counts.keys())
+
 
             mapping[id_match.group(0)] = {
                 't0': t0_hashes,
