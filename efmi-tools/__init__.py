@@ -9,8 +9,8 @@ sys.path.insert(0, str(Path(__file__).parent / 'libs'))
 
 bl_info = {
     "name": "EFMI Tools",
-    "version": (0, 2, 1),
-    "efmi_version": (1, 0, 0),
+    "version": (0, 3, 0),
+    "efmi_version": (1, 1, 0),
     "blender": (3, 6, 0),
     "author": "SpectrumQT, LeoTorreZ, SinsOfSeven, SilentNightSound, DarkStarSword",
     "location": "View3D > Sidebar > Tool Tab",
