@@ -421,7 +421,7 @@ class ObjectMerger:
                         int(vg.name)
                         for vg in obj.vertex_groups
                         if vg.name.isdigit()
-                    )
+                    ) if obj.vertex_groups else -1
                     total_vg_count = max_id + 1
                     # total_vg_count = len(extracted_component.vg_map)
                     ignore_list = [vg for vg in vertex_groups if 'ignore' in vg.name.lower() or vg.index >= total_vg_count]
