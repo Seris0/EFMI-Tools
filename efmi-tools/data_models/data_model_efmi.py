@@ -168,7 +168,7 @@ class DataModelEFMI(DataModel):
 
         else:
 
-            tangents[:, 3] = vertex_buffer.get_field(Semantic.BitangentSign)
+            tangents[:, 3] = vertex_buffer.get_field(AbstractSemantic(Semantic.BitangentSign, 1))
 
         # positions = vertex_buffer.get_field(AbstractSemantic(Semantic.Position))
         # uvs = vertex_buffer.get_field(AbstractSemantic(Semantic.TexCoord))
