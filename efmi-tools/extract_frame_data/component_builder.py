@@ -259,23 +259,28 @@ class ComponentBuilder:
             if draw_data is None:
                 raise ValueError(f'no draw data found for component {":".join(draw_guid)}')
             
+            if not draw_data.textures:
+                continue
+            
             positions = draw_data.buffers['VB0'].buffer.get_field(AbstractSemantic(Semantic.Position))[:, 2]
 
             min_pos = float(positions.min())
 
-            if min_pos > -0.02:
-                total_vertex_count += vertex_count
-            else:
-                total_vertex_count_weapon += vertex_count
+            if not object_id.startswith('Static') and not object_id.startswith('Factory'):
+                if min_pos > -0.02:
+                    total_vertex_count += vertex_count
+                else:
+                    total_vertex_count_weapon += vertex_count
 
             sorted_draw_data[float(positions.max())] = (object_id, vb0_hash, vertex_offset, vertex_count, min_pos, draw_data)
 
         sorted_draw_data = dict(sorted(sorted_draw_data.items(), key=lambda x: x[0], reverse=True))
 
-
         for max_pos, (object_id, vb0_hash, vertex_offset, vertex_count, min_pos, draw_data) in sorted_draw_data.items():
             
-            if min_pos < -0.02:
+            if object_id.startswith('Static') or object_id.startswith('Factory'):
+                object_id = object_id
+            elif min_pos < -0.02:
                 object_id = f'Weapon {total_vertex_count_weapon}'
             else:
                 object_id = f'Character {total_vertex_count}'

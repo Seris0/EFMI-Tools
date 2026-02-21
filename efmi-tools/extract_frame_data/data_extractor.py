@@ -61,6 +61,7 @@ class DrawData:
     def shapekey_hash(self) -> Union[str, None]:
         return self.get_buffer_hash('SK')
 
+
 @dataclass
 class DataExtractor:
     # Input
@@ -91,6 +92,11 @@ class DataExtractor:
                 ): BufferSemantic(
                     AbstractSemantic(Semantic.Color, 0), format=DXGIFormat.R8G8B8A8_SNORM, input_slot=1
             ),
+            BufferSemantic(
+                AbstractSemantic(Semantic.TexCoord, 3), format=DXGIFormat.R8G8B8A8_SNORM, input_slot=2
+                ): BufferSemantic(
+                    AbstractSemantic(Semantic.Color, 2), format=DXGIFormat.R8G8B8A8_SNORM, input_slot=2
+            ),
         }
         self.expected_input_slots = {
             AbstractSemantic(Semantic.Position, 0): [0],
@@ -105,6 +111,8 @@ class DataExtractor:
             AbstractSemantic(Semantic.Blendweight, 0): [2],
             AbstractSemantic(Semantic.TexCoord, 5): [2],  # Ember Weapon
             AbstractSemantic(Semantic.TexCoord, 4): [1], 
+            AbstractSemantic(Semantic.Color, 1): [2], # Unmapped semantic in VB2 with Texcoord 3 (Factorio static)
+            AbstractSemantic(Semantic.Color, 2): [2], # Texcoor 3 in VB2
         }
         self.allowed_missing_input_slots = {
             AbstractSemantic(Semantic.Normal, 0): [0],
@@ -117,12 +125,15 @@ class DataExtractor:
             AbstractSemantic(Semantic.Blendindices, 0): [2],
             AbstractSemantic(Semantic.TexCoord, 5): [2],
             AbstractSemantic(Semantic.TexCoord, 4): [1], 
+            AbstractSemantic(Semantic.Color, 1): [2], # Unmapped semantic in VB2 with Texcoord 3 (Factorio static)
+            AbstractSemantic(Semantic.Color, 2): [2],  # Texcoor 3 in VB2
         }
         self.allowed_unmapped_resources = {
             BufferSemantic(AbstractSemantic(Semantic.EncodedData, 0), format=DXGIFormat.R32_UINT, input_slot=0, offset=12): 16,
             BufferSemantic(AbstractSemantic(Semantic.Color, 0), format=DXGIFormat.R8G8B8A8_SNORM, input_slot=1, offset=8): 12,
             # BufferSemantic(AbstractSemantic(Semantic.Tangent, 0), format=DXGIFormat.R32G32B32A32_FLOAT, input_slot=0, offset=24): 40,  # Levi brows
             BufferSemantic(AbstractSemantic(Semantic.TexCoord, 1), format=DXGIFormat.R32G32_FLOAT, input_slot=1, offset=8): 20,  # Levi
+            BufferSemantic(AbstractSemantic(Semantic.Color, 1), format=DXGIFormat.R8G8B8A8_SNORM, input_slot=2, offset=0): 8,
         }
 
         self.handle_shapekey_cs_0(list(self.call_branches.values()))
@@ -203,12 +214,9 @@ class DataExtractor:
 
                 is_static_object = branch_call.resources.get('VB2', None) is None
                 if is_static_object:
-                    self.info(call_id, 'vb0_hash', f'Skipping static object (not supported yet)')
-                    self.skipped_components.append(vb0_hash)
+                    # self.info(call_id, 'vb0_hash', f'Skipping static object (not supported yet)')
+                    # self.skipped_components.append(vb0_hash)
                     continue
-                    object_id = f'static_{vb0_hash}'
-                else:
-                    object_id = self.object_id
 
                 # Read buffer layouts
                 buffers: Dict[str, WrappedResource] = {
@@ -226,9 +234,20 @@ class DataExtractor:
                                 with open(path, 'r') as f:
                                     ib_format = MigotoFormat.from_txt_file(f)  
                                 break
-                            
+
                 ib_layout = ib_format.ib_layout
                 index_semantic_name = AbstractSemantic(Semantic.Index).get_name()
+
+                if is_static_object:
+                    object_id = f'Static {ib.hash}'
+                else:
+                    object_id = self.object_id
+                    vb = branch_call.resources.get('VB2', None)
+                    if vb:
+                        vb_format = vb.get_format(call_id)
+                        vb_layout = vb_format.vb_layout
+                        if vb_layout.get_element(AbstractSemantic(Semantic.TexCoord, 3)) or vb_layout.get_element(AbstractSemantic(Semantic.Color, 2)):
+                            object_id = f'Factory {vb0_hash}'
 
                 if is_static_object:
                     # Load unique IB for static object from TXT
@@ -330,9 +349,11 @@ class DataExtractor:
 
                     # Remap semantics
                     remapped_semantics = {}
-                    for buffer_semantic in vb_layout.semantics:
+                    for buffer_semantic in vb_layout.get_elements_in_slot(input_slot):
                         for remap_from, remap_to in self.semantic_remap.items():
-                            if remap_from.abstract == buffer_semantic.abstract and remap_from.input_slot == buffer_semantic.input_slot:
+                            if remap_from.input_slot != input_slot:
+                                continue
+                            if remap_from.abstract == buffer_semantic.abstract:
                                 if remap_from.format != buffer_semantic.format:
                                     self.warn(call_id, vb0_hash, f'Failed to remap {buffer_semantic.abstract}->{remap_to.abstract} (expected {remap_from.format}, received {buffer_semantic.format}) for semantic {buffer_semantic}')
                                     continue
@@ -351,6 +372,7 @@ class DataExtractor:
                                 continue
                             self.warn(call_id, vb0_hash, f'Added missing semantic {expected_semantic}')
                             vb_layout.add_element(expected_semantic)
+                            vb_layout.sort()
                         else:
                             if buffer_semantic.offset == expected_semantic.offset:
                                 continue
@@ -503,7 +525,7 @@ class DataExtractor:
                 buffers['CALL_ID'] = call_id
 
                 draw_data = DrawData(
-                    object_id=self.object_id,
+                    object_id=object_id,
                     vertex_offset=vertex_offset,
                     vertex_count=vertex_count,
                     index_offset=index_offset,
