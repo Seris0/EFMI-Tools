@@ -364,6 +364,12 @@ class EFMI_Settings(bpy.types.PropertyGroup):
         description="Fill gaps in Vertex Groups list based on VG names (i.e. add group '1' between '0' and '2' if it's missing)",
         default=True,
     ) # type: ignore
+    
+    fill_missing_mesh_data: BoolProperty(
+        name="Fill Missing Mesh Data",
+        description="Automatically generate missing COLOR (black) and TEXCOORD.xy (empty UV)",
+        default=True,
+    ) # type: ignore
 
     unrestricted_custom_shape_keys: BoolProperty(
         name="Unrestricted Custom Shape Keys",

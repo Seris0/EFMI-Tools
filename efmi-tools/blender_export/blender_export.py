@@ -10,6 +10,7 @@ from ..migoto_io.blender_interface.utility import *
 from ..migoto_io.blender_interface.collections import *
 from ..migoto_io.blender_interface.objects import *
 from ..migoto_io.blender_interface.mesh import *
+from ..migoto_io.blender_tools.meshes import *
 from ..migoto_io.data_model.dxgi_format import DXGIFormat
 from ..migoto_io.data_model.byte_buffer import NumpyBuffer, MigotoFmt, BufferLayout, BufferSemantic, Semantic, AbstractSemantic
 from ..migoto_io.data_model.data_model import DataModel
@@ -29,6 +30,24 @@ class Fatal(Exception): pass
 data_models: Dict[str, DataModel] = {
     'EFMI': DataModelEFMI(),
 }
+
+
+class ObjectMergerEFMI(ObjectMerger):
+    def fill_missing_temp_objects_data(self):
+        objects = [temp_object.object for component in self.components for temp_object in component.objects]
+        self.fill_missing_data(objects)
+
+    @staticmethod
+    def fill_missing_data(objects):
+        for object in objects:
+            mesh = object.data
+            # Fill missing COLOR
+            if not mesh.attributes.get('COLOR', None):
+                data = numpy.zeros((len(mesh.loops), 4), dtype=numpy.float32)
+                create_color_attribute(mesh, 'COLOR', data)
+            # Fill missing TEXCOORD.xy
+            if not mesh.uv_layers.get('TEXCOORD.xy'):
+                create_uv_layer(mesh, 'TEXCOORD.xy')
 
 
 # TODO: Add support of export of unhandled semantics from vertex attributes
@@ -86,7 +105,12 @@ class ModExporter:
         self.cfg.mod_skeleton_type = 'COMPONENT'
         self.skeleton_type = SkeletonType.Merged if self.cfg.mod_skeleton_type == 'MERGED' else SkeletonType.PerComponent
 
-        self.merged_object = MergedObject(None, None, [], MergedObjectShapeKeys(), self.skeleton_type)
+        self.merged_object = MergedObject(
+            object=None,
+            components=[],
+            shapekeys=MergedObjectShapeKeys(),
+            skeleton_type=self.skeleton_type,
+        )
 
         user_context = get_user_context(self.context)
 
@@ -157,7 +181,7 @@ class ModExporter:
 
     def build_merged_object(self, component_id = -1):
         start_time = time.time()
-        object_merger = ObjectMerger(
+        object_merger = ObjectMergerEFMI(
             extracted_object=self.extracted_object,
             component_id=component_id,
             ignore_nested_collections=self.cfg.ignore_nested_collections,
@@ -168,8 +192,7 @@ class ModExporter:
             context=self.context,
             collection=self.cfg.component_collection,
             skeleton_type=self.skeleton_type,
-            mesh_scale=1.00,
-            mesh_rotation=(0, 0, 0),
+            fill_missing_mesh_data=self.cfg.fill_missing_mesh_data,
             add_missing_vertex_groups=self.cfg.add_missing_vertex_groups,
             allow_empty_components=True,
         )
@@ -206,25 +229,18 @@ class ModExporter:
             
         if merged_object.object is not None:
 
-            if merged_object.vertex_count > 65536:
-                ib_layout = buffers_format.get(f'Component{component_id}_IB', None)
-                ib_buffer_semantic = ib_layout.get_element(Semantic.Index)
-                ib_buffer_semantic.format = DXGIFormat.R32_UINT
-                ib_buffer_semantic.stride = ib_buffer_semantic.format.byte_width * 3
-                ib_layout.stride = ib_buffer_semantic.stride
-
             rotation = (0, 0, 0) if not self.extracted_object.rotation else (-self.extracted_object.rotation.x, -self.extracted_object.rotation.y, -self.extracted_object.rotation.z)
 
             buffers, vertex_count = data_model.get_data(
-                self.context, 
-                self.cfg.component_collection, 
-                merged_object.object, 
-                merged_object.mesh, 
-                self.excluded_buffers,
-                buffers_format,
-                self.cfg.mirror_mesh,
-                rotation,
-                index_layout)
+                context=self.context, 
+                collection=self.cfg.component_collection, 
+                obj=merged_object.object, 
+                excluded_buffers=self.excluded_buffers,
+                buffers_format=buffers_format,
+                mirror_mesh=self.cfg.mirror_mesh,
+                mesh_rotation=rotation,
+                object_index_layout=index_layout,
+            )
             
             self.buffers.update(buffers)
 
