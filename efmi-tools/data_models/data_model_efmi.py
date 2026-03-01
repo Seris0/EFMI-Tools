@@ -27,7 +27,7 @@ class DataModelEFMI(DataModel):
             BufferSemantic(AbstractSemantic(Semantic.Color, 0), DXGIFormat.R8G8B8A8_SNORM),
         ]),
         'Blend': BufferLayout([
-            BufferSemantic(AbstractSemantic(Semantic.Blendweight, 0), DXGIFormat.R16_UNORM, stride=8),
+            BufferSemantic(AbstractSemantic(Semantic.Blendweights, 0), DXGIFormat.R16_UNORM, stride=8),
             BufferSemantic(AbstractSemantic(Semantic.Blendindices, 0), DXGIFormat.R8_UINT, stride=4),
         ]),
     }
@@ -49,22 +49,23 @@ class DataModelEFMI(DataModel):
         }
         self.format_encoders = {
             # Normalize weights to 16-bit values, skip sanitizing since it's already done by DataExtractor
-            AbstractSemantic(Semantic.Blendweight, 0): [lambda data: self.converter_normalize_weights(data, sanitize=False, dtype=numpy.uint16)],
+            AbstractSemantic(Semantic.Blendweights, 0): [lambda data: self.converter_normalize_weights(data, sanitize=False, dtype=numpy.uint16)],
             # Reshape flat array [0,1,2,3,4,5] to [[0,1,2],[3,4,5]]
             AbstractSemantic(Semantic.Index): [lambda data: self.converter_reshape_second_dim(data, 3)],
         }
     
-    def set_data(self, 
-                 obj: bpy.types.Mesh, 
-                 mesh: bpy.types.Mesh, 
-                 index_buffer: NumpyBuffer,
-                 vertex_buffer: NumpyBuffer,
-                 vg_remap: Optional[numpy.ndarray],
-                 mirror_mesh: bool = False,
-                 mesh_scale: float = 1.0,
-                 mesh_rotation: Tuple[float] = (0.0, 0.0, 0.0),
-                 import_tangent_data_to_attribute: bool = False):
-
+    def set_data(
+        self, 
+        obj: bpy.types.Mesh, 
+        mesh: bpy.types.Mesh, 
+        index_buffer: NumpyBuffer,
+        vertex_buffer: NumpyBuffer,
+        vg_remap: Optional[numpy.ndarray],
+        mirror_mesh: bool = False,
+        mesh_scale: float = 1.0,
+        mesh_rotation: Tuple[float] = (0.0, 0.0, 0.0),
+        import_tangent_data_to_attribute: bool = False
+    ):
         # Set import_format for NORMAL0 to prevent automatic addition of default format converter (one that would reshape array from 1 to 1,3)
         # buffer_semanic = vertex_buffer.layout.get_element(AbstractSemantic(Semantic.EncodedData))
         # buffer_semanic.import_format = DXGIFormat.R32G32B32_FLOAT
@@ -102,16 +103,18 @@ class DataModelEFMI(DataModel):
 
                 self.data_importer.import_attribute(mesh, BufferSemantic(AbstractSemantic(Semantic.Attribute), DXGIFormat.R32_FLOAT).get_name(), data)
 
-    def get_data(self, 
-                 context: bpy.types.Context, 
-                 collection: bpy.types.Collection, 
-                 obj: bpy.types.Object, 
-                 mesh: bpy.types.Mesh, 
-                 excluded_buffers: List[str],
-                 buffers_format: Optional[Dict[str, BufferLayout]] = None,
-                 mirror_mesh: bool = False,
-                 mesh_rotation: Tuple[float] = (0.0, 0.0, 0.0),
-                 object_index_layout: Optional[List[int]] = None) -> Tuple[Dict[str, NumpyBuffer], int, Optional[List[int]]]:
+    def get_data(
+            self, 
+            context: bpy.types.Context, 
+            collection: bpy.types.Collection, 
+            obj: bpy.types.Object, 
+            excluded_buffers: List[str],
+            buffers_format: Optional[Dict[str, BufferLayout]] = None,
+            mirror_mesh: bool = False,
+            mesh_scale: float = 1.0,
+            mesh_rotation: Tuple[float] = (0.0, 0.0, 0.0),
+            object_index_layout: Optional[List[int]] = None
+        ) -> Tuple[Dict[str, NumpyBuffer], int, Optional[List[int]]]:
 
         if buffers_format is None:
             buffers_format = self.buffers_format
@@ -134,18 +137,17 @@ class DataModelEFMI(DataModel):
             # BufferSemantic(AbstractSemantic(Semantic.Attribute, 0), DXGIFormat.R32G32B32A32_FLOAT),
         ])
 
-        # Create color0 if not found
-        for layout in buffers_format.values():
-            color_semantic = AbstractSemantic(Semantic.Color, 0)
-            if color_semantic in [x.abstract for x in layout.semantics]:
-                if hasattr(mesh, 'vertex_colors') and not color_semantic.get_name() in mesh.vertex_colors:
-                    # Legacy projects support
-                    mesh.vertex_colors.new(name=color_semantic.get_name())
-                else:
-                    mesh.color_attributes.new(name=color_semantic.get_name(), type='FLOAT_COLOR', domain='CORNER')
-                break
-
-        index_data, vertex_buffer = self.export_data(context, collection, mesh, excluded_buffers, buffers_format, mirror_mesh, mesh_rotation, build_blend_remaps)
+        index_data, vertex_buffer = self.export_data(
+            context=context,
+            collection=collection,
+            mesh=obj.evaluated_get(context.evaluated_depsgraph_get()).to_mesh(),
+            excluded_buffers=excluded_buffers,
+            buffers_format=buffers_format,
+            mirror_mesh=mirror_mesh,
+            mesh_scale=mesh_scale,
+            mesh_rotation=mesh_rotation,
+            cache_index_data=build_blend_remaps,
+        )
 
         # Remove TBN, we don't want to export it as buffer
         del buffers_format['TBN']
@@ -405,7 +407,7 @@ class DataModelEFMI(DataModel):
             index_data = index_buffer.get_field(0).ravel()
 
         vg_ids = vg_buffer.get_field(vg_buffer.layout.get_element(AbstractSemantic(Semantic.Blendindices, 1)))
-        vg_weights = blend_buffer.get_field(blend_buffer.layout.get_element(AbstractSemantic(Semantic.Blendweight, 0)))
+        vg_weights = blend_buffer.get_field(blend_buffer.layout.get_element(AbstractSemantic(Semantic.Blendweights, 0)))
         
         blend_remap_forward = numpy.empty(0, dtype=numpy.uint16)
         blend_remap_reverse = numpy.empty(0, dtype=numpy.uint16)
