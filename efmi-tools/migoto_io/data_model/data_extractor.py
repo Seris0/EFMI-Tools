@@ -17,7 +17,7 @@ class BlenderDataExtractor:
         Semantic.Index, Semantic.VertexId, Semantic.Normal, Semantic.Tangent, Semantic.BitangentSign, Semantic.Color, Semantic.TexCoord
     ]
     blender_vertex_semantics: List[Semantic] = [
-        Semantic.Position, Semantic.Blendindices, Semantic.Blendweight, Semantic.Attribute
+        Semantic.Position, Semantic.Blendindices, Semantic.Blendweights, Semantic.Attribute
     ]
     format_converters: Dict[AbstractSemantic, List[callable]] = {}
     semantic_converters: Dict[AbstractSemantic, List[callable]] = {}
@@ -98,7 +98,7 @@ class BlenderDataExtractor:
 
             if export_semantic.extract_format is not None:
                 # Export format has specified extraction format, lets hope they know what they're doing
-                if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweight]:
+                if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweights]:
                     proxy_semantic.stride = export_semantic.extract_format.byte_width * proxy_semantic.get_num_values()
                     proxy_semantic.format = export_semantic.extract_format
                 else:
@@ -106,7 +106,7 @@ class BlenderDataExtractor:
                     proxy_semantic.stride = export_semantic.extract_format.byte_width
             elif export_format.dxgi_type in [DXGIType.UNORM16, DXGIType.UNORM8, DXGIType.SNORM16, DXGIType.SNORM8]:
                 # Formats UNORM16, UNORM8, SNORM16 and SNORM8 cannot be directly exported and require conversion
-                if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweight]:
+                if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweights]:
                     proxy_semantic.stride = blender_format.byte_width * proxy_semantic.get_num_values()
                     proxy_semantic.format = blender_format
                 else:
@@ -115,13 +115,13 @@ class BlenderDataExtractor:
             elif export_semantic.abstract in semantic_converters.keys():
                 # Semantic converter specified and it works with data values
                 # Lets extract data in original format to prevent possible precision loss
-                if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweight]:
+                if export_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweights]:
                     proxy_semantic.stride = blender_format.byte_width * proxy_semantic.get_num_values()
                     proxy_semantic.format = blender_format
                 else:
                     proxy_semantic.format = blender_format
                     proxy_semantic.stride = blender_format.byte_width
-            elif export_semantic.abstract.enum not in [Semantic.Blendindices, Semantic.Blendweight]:
+            elif export_semantic.abstract.enum not in [Semantic.Blendindices, Semantic.Blendweights]:
                 # Only blends can be directly exported with any bitness and padding, because they aren't extracted with foreach_get
                 # Other semantics may require conversion:
                 if export_format.num_values != blender_format.num_values:
@@ -267,7 +267,7 @@ class BlenderDataExtractor:
 
         vertex_groups = None
         for buffer_semantic in proxy_layout.semantics:
-            if buffer_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweight]:
+            if buffer_semantic.abstract.enum in [Semantic.Blendindices, Semantic.Blendweights]:
                 vertex_groups = [sorted(vertex.groups, key=attrgetter('weight'), reverse=True)
                                  for vertex in mesh.vertices]
                 break
@@ -281,11 +281,10 @@ class BlenderDataExtractor:
             if semantic == Semantic.Position:
                 data = self.fetch_data(mesh.vertices, 'undeformed_co', numpy_type, size)
             elif semantic == Semantic.Blendindices:
-                dtype = numpy_type[0] if isinstance(numpy_type, tuple) else numpy_type
                 num_vgs = buffer_semantic.get_num_values()
                 data = numpy.array([[vg.group for vg in groups[:num_vgs]] + [0] * (num_vgs - len(groups))
-                                    for groups in vertex_groups], dtype=dtype)
-            elif semantic == Semantic.Blendweight:
+                                    for groups in vertex_groups], dtype=numpy.uint32)
+            elif semantic == Semantic.Blendweights:
                 dtype = numpy_type[0] if isinstance(numpy_type, tuple) else numpy_type
                 num_vgs = buffer_semantic.get_num_values()
                 data = numpy.array([[vg.weight for vg in groups[:num_vgs]] + [0] * (num_vgs - len(groups))

@@ -69,6 +69,7 @@ class Topology(Enum):
 
 SEMANTIC_ALIASES = {
     'BLENDWEIGHT': 'BLENDWEIGHTS',
+    'BLENDWEIGHTS': 'BLENDWEIGHT',
 }
 
 class Semantic(Enum):

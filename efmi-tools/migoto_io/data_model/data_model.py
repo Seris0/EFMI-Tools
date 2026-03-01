@@ -43,6 +43,7 @@ class DataModel:
         Semantic.TexCoord: DXGIFormat.R32G32_FLOAT,
         Semantic.Position: DXGIFormat.R32G32B32_FLOAT,
         Semantic.Blendindices: DXGIFormat.R32_UINT,
+        Semantic.Blendweights: DXGIFormat.R32_FLOAT,
         Semantic.Blendweight: DXGIFormat.R32_FLOAT,
         Semantic.ShapeKey: DXGIFormat.R32G32B32_FLOAT,
         Semantic.Attribute: DXGIFormat.R32G32B32A32_FLOAT,
@@ -105,7 +106,7 @@ class DataModel:
                 if semantic.abstract.enum == Semantic.Blendindices:
                     self._insert_converter(semantic_converters, semantic.abstract, lambda data: vg_remap[data])
             # Auto-resize second dimension of data array to match Blender format
-            if semantic.abstract.enum not in [Semantic.Blendindices, Semantic.Blendweight, Semantic.Attribute, Semantic.EncodedData]:
+            if semantic.abstract.enum not in [Semantic.Blendindices, Semantic.Blendweights, Semantic.Attribute, Semantic.EncodedData]:
                 blender_num_values = self.blender_data_formats[semantic.abstract.enum].get_num_values()
                 if semantic.get_num_values() != blender_num_values and semantic.import_format is None:
                     converter = lambda data, width=blender_num_values: self.converter_resize_second_dim(data, width)
@@ -146,11 +147,14 @@ class DataModel:
 
         return buffers, len(vertex_buffer)
 
-    def build_buffers(self,
-                      index_data: numpy.ndarray, 
-                      vertex_buffer: NumpyBuffer, 
-                      excluded_buffers: List[str],
-                      buffers_format: Dict[str, BufferLayout]) -> Dict[str, NumpyBuffer]:
+    def build_buffers(
+            self,
+            index_data: numpy.ndarray, 
+            vertex_buffer: NumpyBuffer, 
+            excluded_buffers: List[str],
+            buffers_format: Dict[str, BufferLayout],
+            extend_ib_width: bool = True,
+        ) -> Dict[str, NumpyBuffer]:
         
         start_time = time.time()
 
@@ -164,6 +168,16 @@ class DataModel:
                     continue
                 if semantic.abstract.enum == Semantic.Index:
                     data = index_data
+                    if extend_ib_width:
+                        buffer_semantic = buffer_layout.get_element(Semantic.Index)
+                        if buffer_semantic.format.numpy_base_type == numpy.uint16:
+                            vertex_count = len(vertex_buffer.data)
+                            if vertex_count > 65535:
+                                if buffer_layout.stride != buffer_layout.calculate_stride():
+                                    raise ValueError(f'Cannot auto-extend Semantic.Index width of {buffer_name} buffer: layout stride {buffer_layout.stride} differs from expected {buffer_layout.calculate_stride()}!')
+                                buffer_semantic.format = DXGIFormat.R32_UINT
+                                buffer_semantic.stride = 12
+                                buffer_layout.fill_stride()
                 else:
                     data = vertex_buffer.get_field(semantic.get_name())
                 if buffer is None:
@@ -524,7 +538,7 @@ class DataModel:
         converters[abstract_semantic].insert(0, converter)
             
     @staticmethod
-    def converter_normalize_weights_old(weights: numpy.ndarray, sanitize=True, dtype=numpy.dtype):
+    def converter_normalize_weights(weights: numpy.ndarray, sanitize=True, dtype=numpy.dtype):
         """
         Normalizes 2-dim array of per-vertex float32 weights to uint8 (0-255 range) or uint16 (0-65535 range)
         Precision error caused by float truncation is distributed according to precision loss factor
@@ -589,71 +603,6 @@ class DataModel:
         numpy.add.at(normalized_weights, (flattened_row, flattened_col), 1)
 
         return normalized_weights
-    
-    @staticmethod
-    def converter_normalize_weights(weights: numpy.ndarray, sanitize=True, dtype=numpy.dtype):
-        """
-        Normalizes 2-dim array of per-vertex float32 weights to uint8 (0-255 range) or uint16 (0-65535 range)
-        Precision error caused by float truncation is distributed according to precision loss factor
-        Precision loss factor is calculated as (weight_float_part / weight_integer_part)
-        Weights with bigger precision loss factors are getting 1's from total precision error value
-        """
-        # Step 0: Detect quantization target
-        if dtype == numpy.uint8:
-            container_max = 255
-        elif dtype == numpy.uint16:
-            container_max = 65535
-        else:
-            raise ValueError(f'Cannot normalize to dtype {dtype} (not supported)')
-
-        # Step 1: Sanitize weights and threshold minimal precision
-        if sanitize:
-            weights = numpy.nan_to_num(weights, nan=0.0, posinf=0.0, neginf=0.0)
-        weights[weights < 1/container_max] = 0.0
-
-        # Step 2: Normalize weights to sum = 1 per vertex
-        weight_sums = weights.sum(axis=1, keepdims=True)
-        zero_sums_idx = numpy.where(weight_sums <= 0)[0]
-        if len(zero_sums_idx) > 0:
-            weights[zero_sums_idx, 0] = 1.0
-            weight_sums[zero_sums_idx] = 1.0
-        weights /= weight_sums
-
-        # Step 3: Scale to target integer range
-        scaled = weights * container_max
-        truncated = scaled.astype(dtype)
-
-        # Step 4: Calculate precision error
-        absolute_loss = scaled - truncated
-        precision_error = container_max - truncated.sum(axis=1, keepdims=True)
-
-        # Step 5: Only process rows with non-zero precision error
-        non_zero_error_idx = numpy.where(precision_error[:, 0] > 0)[0]
-        if len(non_zero_error_idx) > 0:
-            # Compute loss factor safely
-            loss_factor = numpy.divide(
-                absolute_loss[non_zero_error_idx],
-                truncated[non_zero_error_idx],
-                out=numpy.zeros_like(absolute_loss[non_zero_error_idx]),
-                where=truncated[non_zero_error_idx] != 0
-            )
-
-            # Sort indices descending by loss factor per row
-            sort_idx = numpy.argsort(-loss_factor, axis=1)
-
-            # Prepare broadcast indices for numpy.add.at
-            row_idx = numpy.repeat(non_zero_error_idx[:, None], weights.shape[1], axis=1)
-            col_idx = sort_idx
-
-            # Generate mask for distributing +1s
-            mask = numpy.arange(weights.shape[1])[None, :] < precision_error[non_zero_error_idx]
-            flattened_row = row_idx[mask]
-            flattened_col = col_idx[mask]
-
-            # Apply +1s to truncated weights
-            numpy.add.at(truncated, (flattened_row, flattened_col), 1)
-
-        return truncated
 
     @staticmethod
     def converter_normalize_wights_8bit(weights: numpy.ndarray, sanitize_weights=True):

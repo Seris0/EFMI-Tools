@@ -47,7 +47,7 @@ class MeshObject:
     def get_weights(self, vertex):
         if isinstance(vertex, int):
             vertex = self.get_vertex(vertex)
-        return vertex.get_value(AbstractSemantic(Semantic.Blendweight))
+        return vertex.get_value(AbstractSemantic(Semantic.Blendweights))
 
     def get_triangle_area(self, vertex_ids):
         triangle = np.array([[self.get_vertex_position(vertex_id) for vertex_id in vertex_ids]])

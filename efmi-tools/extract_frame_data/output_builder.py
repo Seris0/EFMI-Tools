@@ -161,7 +161,7 @@ class OutputBuilder:
         # vertex_buffer_layout = next(iter(mesh_object.components)).vertex_buffer.layout
         
         # vg_index_stride = vertex_buffer_layout.get_element(AbstractSemantic(Semantic.Blendindices)).stride
-        # vg_weight_stride = vertex_buffer_layout.get_element(AbstractSemantic(Semantic.Blendweight)).stride
+        # vg_weight_stride = vertex_buffer_layout.get_element(AbstractSemantic(Semantic.Blendweights)).stride
 
         # export_format = {
         #     'Index': ExtractedObjectBuffer([
@@ -172,7 +172,7 @@ class OutputBuilder:
         #     ]),
         #     'Blend': ExtractedObjectBuffer([
         #         ExtractedObjectBufferSemantic(Semantic.Blendindices, 0, DXGIFormat.R8_UINT, stride=vg_index_stride),
-        #         ExtractedObjectBufferSemantic(Semantic.Blendweight, 0, DXGIFormat.R8_UINT, stride=vg_weight_stride),
+        #         ExtractedObjectBufferSemantic(Semantic.Blendweights, 0, DXGIFormat.R8_UINT, stride=vg_weight_stride),
         #     ]),
         #     'Vector': ExtractedObjectBuffer([
         #         ExtractedObjectBufferSemantic(Semantic.Tangent, 0, DXGIFormat.R8G8B8A8_SNORM),

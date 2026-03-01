@@ -141,7 +141,7 @@ configuration = Configuration(
                 Source('DRAW_VS', ShaderType.Empty, SlotType.VertexBuffer, SlotId(2), ignore_missing=True),
             ],
             BufferLayout([
-                BufferSemantic(AbstractSemantic(Semantic.Blendweight, 0), DXGIFormat.R16G16B16A16_UNORM, input_slot=2),
+                BufferSemantic(AbstractSemantic(Semantic.Blendweights, 0), DXGIFormat.R16G16B16A16_UNORM, input_slot=2),
                 BufferSemantic(AbstractSemantic(Semantic.Blendindices, 0), DXGIFormat.R8G8B8A8_UINT, input_slot=2),
             ], force_stride=True)),
         'BLEND_BUFFER_IDX_ONLY': DataMap([

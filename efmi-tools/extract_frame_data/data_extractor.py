@@ -113,7 +113,7 @@ class DataExtractor:
             # AbstractSemantic(Semantic.TexCoord, 4): [1],
             AbstractSemantic(Semantic.Color, 0): [1],
             AbstractSemantic(Semantic.Blendindices, 0): [2],
-            AbstractSemantic(Semantic.Blendweight, 0): [2],
+            AbstractSemantic(Semantic.Blendweights, 0): [2],
             AbstractSemantic(Semantic.TexCoord, 5): [2],  # Ember Weapon
             AbstractSemantic(Semantic.TexCoord, 4): [1], 
             AbstractSemantic(Semantic.Color, 1): [2], # Unmapped semantic in VB2 with Texcoord 3 (Factorio static)
@@ -125,7 +125,7 @@ class DataExtractor:
             AbstractSemantic(Semantic.EncodedData, 0): [0],
             AbstractSemantic(Semantic.TexCoord, 1): [1],
             # AbstractSemantic(Semantic.TexCoord, 4): [1],
-            AbstractSemantic(Semantic.Blendweight, 0): [2],
+            AbstractSemantic(Semantic.Blendweights, 0): [2],
             AbstractSemantic(Semantic.Color, 0): [1],
             AbstractSemantic(Semantic.Blendindices, 0): [2],
             AbstractSemantic(Semantic.TexCoord, 5): [2],
@@ -524,7 +524,7 @@ class DataExtractor:
                 # blend_buffer.extend(vertex_count - blend_buffer.num_elements)
                 # blendices_semantic = AbstractSemantic(Semantic.Blendindices, 0)
                 # blend_buffer.set_values(blendices_semantic, blend_buffer_idx.get_values(blendices_semantic))
-                # blendweights_semantic = AbstractSemantic(Semantic.Blendweight, 0)
+                # blendweights_semantic = AbstractSemantic(Semantic.Blendweights, 0)
                 # blend_buffer.set_values(blendweights_semantic, [1, 0, 0, 0] * vertex_count)
 
 
