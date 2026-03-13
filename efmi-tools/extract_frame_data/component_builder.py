@@ -131,7 +131,7 @@ class MeshObject:
         # print(f'Building {draw_data.vb0_hash} buffer len {draw_data.vertex_count}')
         
         ib = draw_data.buffers['IB'].buffer
-        if is_static_object:
+        if draw_data.vertex_offset > 0:
             ib.data['INDEX'] -= draw_data.vertex_offset
 
         vb = NumpyBuffer(vb_layout, size=draw_data.vertex_count)
@@ -141,8 +141,8 @@ class MeshObject:
             for semantic in buffer.layout.semantics:
                 semantic_name = semantic.get_name()
                 data = buffer.get_field(semantic_name)
-                if is_static_object:
-                     data = data[draw_data.vertex_offset : draw_data.vertex_offset + draw_data.vertex_count]     
+                if len(data) > draw_data.vertex_count:
+                    data = data[draw_data.vertex_offset : draw_data.vertex_offset + draw_data.vertex_count]
                 try:              
                     vb.set_field(semantic_name, data)
                 except Exception as e:

@@ -369,14 +369,17 @@ class WrappedResource:
             self.call_formats[descriptor.call_id] = fmt_text
             self.formats[fmt_text] = MigotoFormat.from_fmt_text(fmt_text)
 
-    def load_buffer(self, layout: BufferLayout):
+    def load_buffer(self, layout: BufferLayout, byte_offset: int = 0, byte_length: int = 0):
         if self.ext == 'txt':
             raise NotImplementedError
         if self.ext != 'buf':
             raise ValueError(f'Buffer loading is not supported for `.{self.ext}` resource {self}')
         with open(self.data.path, 'rb') as f:
+            raw = f.read()
+            if byte_length > 0:
+                raw = raw[byte_offset : byte_offset + byte_length]
             self.buffer = NumpyBuffer(layout)
-            self.buffer.import_raw_data(f.read())
+            self.buffer.import_raw_data(raw)
 
     def get_format(self, call_id = None, header_fmt_text= None):
         if call_id:

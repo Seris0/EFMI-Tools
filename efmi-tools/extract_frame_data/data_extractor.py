@@ -270,7 +270,9 @@ class DataExtractor:
                 else:
                     # Load last used IB from BUF
                     try:
-                        ib.load_buffer(ib_layout)
+                        ib_byte_offset = ib_format.byte_offset
+                        ib_byte_length = ib_format.index_count * ib_format.format.value_byte_width
+                        ib.load_buffer(ib_layout, byte_offset=ib_byte_offset, byte_length=ib_byte_length)
                     except Exception as e:
                         raise e
 
@@ -420,7 +422,9 @@ class DataExtractor:
                     
                     # Load buffer data
                     try:
-                        buffers[vb_id].load_buffer(output_vb_layout)
+                        vb_byte_offset = vb_format.byte_offset
+                        vb_byte_length = vb_format.stride * vb_format.vertex_count
+                        buffers[vb_id].load_buffer(output_vb_layout, byte_offset=vb_byte_offset, byte_length=vb_byte_length)
                         
                         try:
 
