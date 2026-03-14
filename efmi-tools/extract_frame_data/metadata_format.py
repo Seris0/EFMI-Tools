@@ -41,6 +41,7 @@ class ExtractedObjectBuffer:
 
 @dataclass
 class ExtractedObjectComponentLOD:
+    ib_hash: str
     vb0_hash: str
     vg_map: Dict[int, int]
 

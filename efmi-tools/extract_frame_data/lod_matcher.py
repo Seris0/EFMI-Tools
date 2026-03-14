@@ -34,15 +34,15 @@ class LODMatcher:
         self.geo_matcher = GeometryMatcher(method=self.geo_matcher_method, sensivity=self.geo_matcher_sensivity)
         self.vg_matcher = VertexGroupsMatcher(candidates_count=self.vg_matcher_candidates_count)
 
-        self.full_components: Dict[str, str] = {}
-        self.lod_components: Dict[str, str] = {}
+        self.full_components: Dict[str, Tuple[str, str]] = {}
+        self.lod_components: Dict[str, Tuple[str, str]] = {}
 
-        self.lod_hash_to_name: Dict[str, str] = {}
+        self.lod_hash_to_name: Dict[str, Tuple[str, str]] = {}
 
         self.full_meshes: Dict[str, NumpyMesh] = {}
         self.lod_meshes: Dict[str, NumpyMesh] = {}
 
-        self.matched: Dict[str, str] = {}
+        self.matched: Dict[str, Tuple[str, str, str, float]] = {}
 
         self.vg_maps: Dict[str, Tuple[str, Dict[int, int]]] = {}
 
@@ -50,18 +50,18 @@ class LODMatcher:
     # Loading
     # -------------------------
 
-    def _load_component_hashes(self, path: Optional[Path] = None, json_str: str = '', object_id: str = '') -> Dict[str, str]:
+    def _load_component_hashes(self, path: Optional[Path] = None, json_str: str = '', object_id: str = '') -> Dict[str, Tuple[str, str]]:
         if path is not None:
             with open(path / 'Metadata.json', 'r') as f:
                 metadata = json.load(f)
             return {
-                f'Component {i}': component['vb0_hash']
+                f'Component {i}': (component['vb0_hash'], component['ib_hash'])
                 for i, component in enumerate(metadata['components'])
             }
         else:
             metadata = json.loads(json_str)
             return {
-                f'{object_id} - Component {i}': component['vb0_hash']
+                f'{object_id} - Component {i}': (component['vb0_hash'], component['ib_hash'])
                 for i, component in enumerate(metadata['components'])
             }
 
@@ -72,7 +72,7 @@ class LODMatcher:
         if self.lod_objects is not None:
             for object_id, obj_data in self.lod_objects.items():
                 self.lod_components.update(self._load_component_hashes(json_str=obj_data.metadata, object_id=object_id))
-        self.lod_hash_to_name = {hash: name for name, hash in self.lod_components.items()}
+        self.lod_hash_to_name = {vb0_hash: (name, ib_hash) for name, (vb0_hash, ib_hash) in self.lod_components.items()}
 
     def load_meshes(self):
         t0 = time.time()
@@ -106,10 +106,12 @@ class LODMatcher:
     # -------------------------
 
     def match_by_hash(self):
-        for full_name, full_hash in self.full_components.items():
-            lod_name = self.lod_hash_to_name.pop(full_hash, None)
-            if lod_name is None:
+        for full_name, (full_hash, full_ib_hash) in self.full_components.items():
+            lod_info = self.lod_hash_to_name.pop(full_hash, None)
+            if lod_info is None:
                 continue
+
+            lod_name, lod_ib_hash = lod_info
 
             if self.lod_meshes[lod_name] is None:
                 continue
@@ -119,7 +121,7 @@ class LODMatcher:
                 self.lod_meshes[lod_name],
             )
 
-            self.matched[full_hash] = lod_name
+            self.matched[full_hash] = (lod_name, full_hash, lod_ib_hash, similarity)
 
             print(
                 f'{full_name} {full_hash} = {lod_name} {full_hash} '
@@ -147,20 +149,21 @@ class LODMatcher:
 
             return similarities
         
-        for full_name, full_hash in self.full_components.items():
+        for full_name, (full_hash, full_ib_hash) in self.full_components.items():
 
             if full_hash in self.matched:
                 raise ValueError(f'Duplicate component vb0 hash {full_hash} found in Metadata.json!')
 
             full_mesh = self.full_meshes[full_name]
             
-            best_lod_hash, best_similarity = None, None
+            best_lod_hash, best_lod_ib_hash, best_similarity = None, None, None
 
             # Try to get LoD by full model hash
 
-            best_lod_name = self.lod_hash_to_name.pop(full_hash, None)
+            lod_info = self.lod_hash_to_name.pop(full_hash, None)
 
-            if best_lod_name is not None:
+            if lod_info is not None:
+                best_lod_name, best_lod_ib_hash = lod_info
 
                 similarity = self.geo_matcher.calculate_similarity(
                     self.full_meshes[full_name],
@@ -186,11 +189,11 @@ class LODMatcher:
                 self.geo_matcher.samples_count = self.geo_matcher_prefilter_sample_size
                 self.geo_matcher.voxel_size = self.geo_matcher_prefilter_voxel_size
 
-                prefiltered_similarities = calculate_similarities(self.lod_hash_to_name)
+                prefiltered_similarities = calculate_similarities({h: info[0] for h, info in self.lod_hash_to_name.items()})
 
                 prefiltered_lod_hashes = list(prefiltered_similarities.keys())[:min(self.geo_matcher_prefilter_candidates_count, len(prefiltered_similarities))]
 
-                lod_hash_to_names = {hash: self.lod_hash_to_name[hash] for hash in prefiltered_lod_hashes}
+                lod_hash_to_names = {hash: self.lod_hash_to_name[hash][0] for hash in prefiltered_lod_hashes}
                 
                 self.geo_matcher.samples_count = self.geo_matcher_sample_size
                 self.geo_matcher.voxel_size = self.geo_matcher_voxel_size
@@ -200,7 +203,8 @@ class LODMatcher:
                 t_geo = time.time() - t_geo
 
                 best_lod_hash, best_similarity = next(iter(similarities.items()))
-                best_lod_name = self.lod_hash_to_name.pop(best_lod_hash)
+                best_lod_info = self.lod_hash_to_name.pop(best_lod_hash)
+                best_lod_name, best_lod_ib_hash = best_lod_info
 
                 print(
                     f'{full_name} {full_hash} = {best_lod_name} {best_lod_hash} {len(self.lod_meshes[best_lod_name].vertex_buffer)}'
@@ -208,7 +212,7 @@ class LODMatcher:
                     f'similarity={best_similarity:.2f}%, '
                 )
 
-            self.matched[full_hash] = (best_lod_name, best_lod_hash, best_similarity)
+            self.matched[full_hash] = (best_lod_name, best_lod_hash, best_lod_ib_hash, best_similarity)
                 
             # Match VGs
 

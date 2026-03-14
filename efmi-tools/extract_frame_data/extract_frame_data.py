@@ -360,7 +360,7 @@ def extract_frame_data(cfg, extract_lods=False):
     
         for component_id, component in enumerate(extracted_object.components):
 
-            (lod_name, lod_vb0_hash, similarity) = lod_matcher.matched.get(component.vb0_hash, (None, None, None))
+            (lod_name, lod_vb0_hash, lod_ib_hash, similarity) = lod_matcher.matched.get(component.vb0_hash, (None, None, None, None))
 
             if lod_vb0_hash is None:
                 continue
@@ -370,7 +370,7 @@ def extract_frame_data(cfg, extract_lods=False):
             if component.vb0_hash == lod_vb0_hash and vg_map is None:
                 continue
 
-            lod = ExtractedObjectComponentLOD(vb0_hash=lod_vb0_hash, vg_map={})
+            lod = ExtractedObjectComponentLOD(ib_hash=lod_ib_hash, vb0_hash=lod_vb0_hash, vg_map={})
 
             lods_count += 1
 
@@ -398,8 +398,11 @@ def extract_frame_data(cfg, extract_lods=False):
             print(f'LOD Found: Component {component_id} {component.vb0_hash} matches LOD {lod_vb0_hash} ({similarity:.2f}% similarity)')
 
             # Skip LoD import if it already exists in Metadata.json
-            if any(obj.vb0_hash == lod_vb0_hash for obj in component.lods):
+            existing_lod = next((obj for obj in component.lods if obj.vb0_hash == lod_vb0_hash), None) if component.lods is not None else None
+            if existing_lod is not None:
                 print(f'LOD {lod_vb0_hash} import skipped (already in Metdata.json)')
+                if getattr(existing_lod, 'ib_hash', None) is None:
+                    existing_lod.ib_hash = lod_ib_hash
                 continue
 
             if component.lods is None:
