@@ -86,10 +86,14 @@ class MeshObject:
         self.components_data.sort(key=lambda data: data.draw_data.vertex_offset, reverse=False)
         self.import_shapekey_data(shapekeys)
         for component_data in self.components_data:
-            component = self.build_component(component_data.draw_data, vb_layout)
-            self.vertex_count += component.vertex_count
-            self.index_count += component.index_count
-            self.components.append(component)
+            draw_data = component_data.draw_data
+            try:
+                component = self.build_component(draw_data, vb_layout)
+                self.vertex_count += component.vertex_count
+                self.index_count += component.index_count
+                self.components.append(component)
+            except Exception as e:
+                log.error(f'Failed to build component {draw_data.vb0_hash} (off: {draw_data.vertex_offset}, cnt: {draw_data.vertex_count}) for object {self.object_id}: {e}')
         # vg_map = self.get_merged_vg_map()
         for component_id, component in enumerate(self.components):
             # component.vg_map = vg_map[component_id]
@@ -303,8 +307,11 @@ class ComponentBuilder:
 
             self.mesh_objects[object_id].import_component_data(draw_data)
             
-        for mesh_object in self.mesh_objects.values():
-            mesh_object.build_components(self.output_vb_layout, self.shapekeys)
+        for object_id, mesh_object in self.mesh_objects.items():
+            try:
+                mesh_object.build_components(self.output_vb_layout, self.shapekeys)
+            except Exception as e:
+                log.error(f'Unexpected error building components for object {object_id}: {e}')
 
         log.info(f'Collected components for {len(self.mesh_objects)} VB hashes: {", ".join(self.mesh_objects.keys())}')
 
