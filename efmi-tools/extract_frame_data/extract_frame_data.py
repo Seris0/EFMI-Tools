@@ -10,7 +10,7 @@ from ..migoto_io.blender_interface.objects import *
 
 from ..migoto_io.migoto_model.migoto_mesh import GeometryMatcherConfig, GeometryMatcherMethod
 
-from ..migoto_io.object_extractor.raw_object.raw_object_extractor import RawObjectFilter
+from ..migoto_io.object_extractor.raw_object.raw_object_extractor import DrawCallFilter, RawObjectFilter
 from ..migoto_io.object_extractor.migoto_object.migoto_object import MigotoObject, MigotoComponent, DuplicateDataError
 from ..migoto_io.object_extractor.migoto_object.migoto_object_builder import MigotoObject, MigotoObjectFilter
 from ..migoto_io.object_extractor.migoto_object.textures_descriptor import TextureFilter
@@ -112,6 +112,9 @@ def extract_frame_data(context, cfg, extract_lods=False):
 
     migoto_objects = object_extractor.extract_objects(
         model=frame_model,
+        draw_call_filter=DrawCallFilter(
+            component_hash_blacklist=cfg.skip_draw_resource_hashes if cfg.skip_draw_resource_hashes_enabled else "",
+        ),
         raw_object_filter=RawObjectFilter(
             min_component_count=cfg.skip_object_min_component_count if cfg.skip_object_min_component_count_enabled else 0,
             min_texture_count=cfg.skip_object_min_texture_count if cfg.skip_object_min_texture_count_enabled else 0,

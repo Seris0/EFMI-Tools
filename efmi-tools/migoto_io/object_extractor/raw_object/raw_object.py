@@ -16,6 +16,7 @@ class RawComponent:
         self,
         slot_type: SlotType,
         shader_type: ShaderType | None = None,
+        resource_hash: str | None = None,
         skip_implicit: bool = True
     ) -> dict[ResourceSlot, list[Resource]]:
 
@@ -27,6 +28,8 @@ class RawComponent:
                 resources_storage = shader_call.model_resources
             for slot, resource in resources_storage.get_slot_index(slot_type).items():
                 if shader_type is not None and shader_type != slot.shader_type:
+                    continue
+                if resource_hash is not None and resource_hash != resource.hash:
                     continue
                 slot_resources = resources.get(slot, [])
                 if not slot_resources:

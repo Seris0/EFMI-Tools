@@ -17,7 +17,14 @@ from ...migoto_model.frame_model.api_calls.draw_calls import DrawCall, DrawIndex
 from .raw_object import RawObject, RawComponent
 
 
+@dataclass
 class DrawCallFilter:
+    component_hash_blacklist: str = ""
+
+    _component_hash_blacklist: set[str] = field(init=False)
+
+    def __post_init__(self):
+        self._component_hash_blacklist = set([x for x in re.split(r"[,; ]", self.component_hash_blacklist) if x])
 
     def collect(self, model: DumpModel) -> list[ShaderCall]:
 
@@ -33,6 +40,17 @@ class DrawCallFilter:
             if shader_call.has_unknown_resource:
                 continue
 
+            # Skip component with blacklisted resource hash
+            resource_found = False
+            for blacklisted_hash in self._component_hash_blacklist:
+                blacklisted_resources = shader_call.resources.get_by_hash(blacklisted_hash)
+                if blacklisted_resources:
+                    print(f"[{shader_call.id:06d}]: Skipped component draw call with blaclisted hashes: {[resource.hash for resource in blacklisted_resources]}")
+                    resource_found = True
+                    break
+            if resource_found:
+                continue
+                
             buffers = shader_call.resources
 
             vb0 = buffers.get_by_slot(ResourceSlot(ShaderType.Any, SlotType.VertexBuffer, 0))

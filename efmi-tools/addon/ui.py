@@ -226,6 +226,14 @@ class EFMI_TOOLS_PT_SIDEBAR(bpy.types.Panel):
         sub.prop(cfg, "skip_object_resource_hashes")
 
         layout.row()
+
+        row = layout.row(align=True)
+        row.prop(cfg, "skip_draw_resource_hashes_enabled",)
+        sub = row.row()
+        sub.enabled = cfg.skip_draw_resource_hashes_enabled
+        sub.prop(cfg, "skip_draw_resource_hashes")
+
+        layout.row()
             
         row = layout.row(align=True)
         row.prop(cfg, "skip_small_textures",)

@@ -62,6 +62,7 @@ class ObjectExtractor:
     def extract_objects(
         self,
         model: DumpModel,
+        draw_call_filter: DrawCallFilter,
         raw_object_filter: RawObjectFilter,
         migoto_object_filter: MigotoObjectFilter
     ) -> list[MigotoObject]:
@@ -71,7 +72,7 @@ class ObjectExtractor:
         print(f'Extracting raw objects from frame model...')
 
         raw_objects = RawObjectExtractor(
-            draw_call_filter=DrawCallFilter(),
+            draw_call_filter=draw_call_filter,
             identifier=RawObjectIdentifier(),
             raw_object_filter=raw_object_filter,
         ).extract(model)
