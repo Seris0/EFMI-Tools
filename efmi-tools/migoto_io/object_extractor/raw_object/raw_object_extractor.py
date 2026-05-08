@@ -64,7 +64,7 @@ class DrawCallFilter:
 class RawObjectIdentifier:
 
     @staticmethod
-    def get_object_id(shader_call: ShaderCall) -> tuple[str, bool]:
+    def get_object_id(shader_call: ShaderCall) -> tuple[str | None, bool | None]:
 
         dynamic_cb = None
 
@@ -78,7 +78,7 @@ class RawObjectIdentifier:
                 break
 
         if dynamic_cb is None:
-            return "0x0000000000000000"
+            return None, None
 
         dynamic_cb.build_numpy_buffer(MigotoFormat(vb_layout=BufferLayout([
             BufferSemantic(AbstractSemantic(Semantic.RawData, 0), DXGIFormat.R32G32B32A32_FLOAT, input_slot=0),
@@ -202,6 +202,10 @@ class RawObjectExtractor:
         for shader_call in shader_calls:
                 
             object_id, gpu_posed = self.identifier.get_object_id(shader_call)
+
+            if object_id is None:
+                print(f"[{shader_call.id:06d}]: Skipped draw call processing (object type is not supported).")
+                continue
 
             extracted_object = raw_objects.get(object_id, None)
 
