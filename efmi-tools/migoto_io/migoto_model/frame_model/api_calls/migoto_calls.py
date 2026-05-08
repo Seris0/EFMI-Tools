@@ -69,6 +69,18 @@ class MigotoDumpFile(CommandCall):
         if resource is None:
             resource = dump_model.current_resources.get_by_slot(slot)
 
+        # Current implementation is still missing some D3D11 calls processing, so resource may seemingly appear "out from nowhere".
+        # When that happens, lets show warning along with the entire commands stack (but it will contain only explicitly set resources). 
+        if resource is None:
+            print(f"WARNING [{shader_call.id:06d}]: Skipped {slot} resource processing due to missing registration (related D3D11 API command processing not implemented?)!")
+            print(f"    Command: [line={self.raw_command.line_id}]: {self.raw_command.line}")
+            print(f"    Commands stack:")
+            for command in shader_call.commands:
+                print(f"        {command.raw_command.line}")
+                for binding in command.raw_command.bindings:
+                    print(f"            {binding.line}")
+            return
+
         # Always write last used descriptors and paths to main resource
         # View should be set in slot only when offset and size can be calculated
         # - As of now, view fmt is available only on "3DMigoto Dumping Buffer" for .txt
