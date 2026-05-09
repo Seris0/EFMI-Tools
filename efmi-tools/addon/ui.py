@@ -20,6 +20,7 @@ from ..blender_export.ini_maker import IniMaker
 from ..extract_frame_data.extract_frame_data import extract_frame_data
 
 from .modules.toolbox.ui import *
+from .modules.post_dump_filtering.ui import draw_menu_post_dump_filtering
 
 
 def add_row_with_error_handler(layout, cfg, setting_names):
@@ -97,6 +98,9 @@ class EFMI_TOOLS_PT_SIDEBAR(bpy.types.Panel):
 
         elif cfg.tool_mode == 'EXTRACT_FRAME_DATA':
             self.draw_menu_extract_frame_data(context)
+
+        elif cfg.tool_mode == 'POST_DUMP_FILTERING':
+            draw_menu_post_dump_filtering(layout, context)
 
     def draw_menu_tools_mode(self, context):
         cfg = context.scene.efmi_tools_settings

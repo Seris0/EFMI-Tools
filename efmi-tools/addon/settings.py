@@ -7,6 +7,7 @@ from .. import __name__ as package_name
 from .. import addon_updater_ops
 
 from .modules.ini_toggles.props import IniToggles
+from .modules.post_dump_filtering.props import PostDumpFilteringSettings
 
 from .exceptions import clear_error
 
@@ -50,10 +51,15 @@ class EFMI_Settings(bpy.types.PropertyGroup):
             ('IMPORT_OBJECT', 'Import Object', 'Import .ib ad .vb files from selected directory'),
             ('EXTRACT_LOD_DATA', 'Extract LoDs From Dump', 'Extract LoDs data from the selected Open World frame dump directory and import it to Metadata.json'),
             ('EXTRACT_FRAME_DATA', 'Extract Objects From Dump', 'Extract components of all EFMI-compatible objects from the selected frame dump directory'),
+            ('POST_DUMP_FILTERING', 'Post Dump Filtering', 'Load dumped DDS textures and categorize them after dumping'),
             ('TOOLS_MODE', 'Toolbox', 'Bunch of useful object actions'),
         ],
         update=lambda self, context: clear_error(self),
         default='EXTRACT_FRAME_DATA',
+    ) # type: ignore
+
+    post_dump_filtering: bpy.props.PointerProperty(
+        type=PostDumpFilteringSettings,
     ) # type: ignore
 
 
