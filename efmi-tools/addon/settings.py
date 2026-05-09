@@ -234,7 +234,12 @@ class EFMI_Settings(bpy.types.PropertyGroup):
         description="Automatically mirror mesh to match actual in-game left-right. Transformation applies to the data itself and does not affect Scale X of Transform section in Object Properties",
         default=False,
     ) # type: ignore
-
+    
+    import_texture: BoolProperty(
+        name="Import Texture",
+        description="Assign textures from TextureUsage.json to imported meshes. Uses .dds files from the Object Sources folder",
+        default=False,
+    ) # type: ignore
 
     ########################################
     # LOD Import

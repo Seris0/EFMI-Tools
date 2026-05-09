@@ -12,6 +12,8 @@ from ..migoto_io.object_extractor.migoto_object.migoto_object import MigotoObjec
 
 from ..data_models.data_model_efmi import DataModelEFMI
 
+from .assign_textures_slots import assign_textures
+
 
 # TODO: Add support of import of unhandled semantics into vertex attributes
 
@@ -106,5 +108,11 @@ def blender_import(operator, context, cfg):
         import_object(context, cfg, collection_name, migoto_object, extended_mesh_name=True)
     except Exception as e:
         raise ConfigError('object_source_folder', f'Failed to import object from sources folder:\n{e}')
+
+    if cfg.import_texture:
+        try:
+            assign_textures(object_source_folder)
+        except Exception as e:
+            raise ConfigError('object_source_folder', f'Failed to assign textures from object sources folder:\n{e}')
 
     print(f'Total import time: {time.time() - start_time :.3f}s')
