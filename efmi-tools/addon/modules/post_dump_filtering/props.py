@@ -69,6 +69,101 @@ class PostDumpTextureItem(bpy.types.PropertyGroup):
         return f"{self.rename_stem}-{filter_label}.dds"
 
 
+class PostDumpComponentLodItem(bpy.types.PropertyGroup):
+    index: bpy.props.IntProperty(
+        name="Index",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    lod_object_name: bpy.props.StringProperty(
+        name="LoD Object",
+    ) # type: ignore
+
+    vertex_count: bpy.props.IntProperty(
+        name="Vertices",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    index_count: bpy.props.IntProperty(
+        name="Indices",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    ib_hash: bpy.props.StringProperty(
+        name="IB Hash",
+    ) # type: ignore
+
+    vb0_hash: bpy.props.StringProperty(
+        name="VB0 Hash",
+    ) # type: ignore
+
+
+class PostDumpComponentItem(bpy.types.PropertyGroup):
+    index: bpy.props.IntProperty(
+        name="Index",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    mesh_name: bpy.props.StringProperty(
+        name="Component",
+    ) # type: ignore
+
+    file_count: bpy.props.IntProperty(
+        name="Files",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    lod_count: bpy.props.IntProperty(
+        name="LoDs",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    vertex_count: bpy.props.IntProperty(
+        name="Vertices",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    index_count: bpy.props.IntProperty(
+        name="Indices",
+        default=0,
+        min=0,
+    ) # type: ignore
+
+    ib_hash: bpy.props.StringProperty(
+        name="IB Hash",
+    ) # type: ignore
+
+    vb0_hash: bpy.props.StringProperty(
+        name="VB0 Hash",
+    ) # type: ignore
+
+    lods: bpy.props.CollectionProperty(
+        type=PostDumpComponentLodItem,
+    ) # type: ignore
+
+    remove_component: bpy.props.BoolProperty(
+        name="Delete",
+        description="Delete this component from the dump and reindex the remaining components",
+        default=False,
+    ) # type: ignore
+
+    clear_lods: bpy.props.BoolProperty(
+        name="Clear LoDs",
+        description="Remove this component's LoD metadata without deleting the component",
+        default=False,
+    ) # type: ignore
+
+    def refresh_display_name(self):
+        self.name = self.mesh_name or f"Component {self.index}"
+
+
 class PostDumpFilteringSettings(bpy.types.PropertyGroup):
     textures: bpy.props.CollectionProperty(
         type=PostDumpTextureItem,
@@ -98,7 +193,22 @@ class PostDumpFilteringSettings(bpy.types.PropertyGroup):
         min=0,
     ) # type: ignore
 
+    components: bpy.props.CollectionProperty(
+        type=PostDumpComponentItem,
+    ) # type: ignore
+
+    active_component_index: bpy.props.IntProperty(
+        name="Component Index",
+        default=0,
+        min=0,
+    ) # type: ignore
+
     def get_active_texture(self):
         if 0 <= self.active_texture_index < len(self.textures):
             return self.textures[self.active_texture_index]
+        return None
+
+    def get_active_component(self):
+        if 0 <= self.active_component_index < len(self.components):
+            return self.components[self.active_component_index]
         return None

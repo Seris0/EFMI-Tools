@@ -1,5 +1,10 @@
 import bpy
 
+from .component_operators import (
+    EFMI_PostDumpClearComponents,
+    EFMI_PostDumpLoadComponents,
+    EFMI_PostDumpPatchComponents,
+)
 from .operators import (
     EFMI_PostDumpApplyTextureNames,
     EFMI_PostDumpAutoFilterTextures,
@@ -29,6 +34,27 @@ class EFMI_TOOLS_UL_PostDumpTextures(bpy.types.UIList):
         elif self.layout_type == "GRID":
             layout.alignment = "CENTER"
             layout.label(text="", icon="IMAGE_DATA")
+
+
+class EFMI_TOOLS_UL_PostDumpComponents(bpy.types.UIList):
+    bl_idname = "EFMI_TOOLS_UL_PostDumpComponents"
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        if self.layout_type in {"DEFAULT", "COMPACT"}:
+            split = layout.split(factor=0.38)
+            split.label(text=item.mesh_name, icon="MESH_DATA")
+
+            details = split.split(factor=0.22)
+            details.label(text=f"LoDs: {item.lod_count}")
+
+            toggles = details.split(factor=0.5)
+            lod_toggle = toggles.row(align=True)
+            lod_toggle.enabled = not item.remove_component
+            lod_toggle.prop(item, "clear_lods", text="Clear LoDs")
+            toggles.prop(item, "remove_component", text="Delete")
+        elif self.layout_type == "GRID":
+            layout.alignment = "CENTER"
+            layout.label(text="", icon="MESH_DATA")
 
 
 def draw_texture_preview(layout, texture):
@@ -74,13 +100,47 @@ def draw_texture_filter_buttons(layout, cfg):
     op.filter_type = "OTHER"
 
 
+def draw_component_details(layout, component):
+    box = layout.box()
+    header = box.split(factor=0.42)
+    header.label(text=component.mesh_name, icon="MESH_DATA")
+    header_stats = header.row(align=True)
+    header_stats.label(text=f"Index: {component.index}")
+    header_stats.label(text=f"LoDs: {component.lod_count}")
+
+    split = box.split(factor=0.42)
+    left_col = split.column()
+    left_col.label(text=f"Vertices: {component.vertex_count}")
+    left_col.label(text=f"Indices: {component.index_count}")
+    right_col = split.column()
+    right_col.label(text=f"IB: {component.ib_hash or 'Unknown'}")
+    right_col.label(text=f"VB0: {component.vb0_hash or 'Unknown'}")
+
+    if len(component.lods) == 0:
+        box.label(text="No LoD metadata.", icon="INFO")
+        return
+
+    box.separator()
+    for lod in component.lods:
+        box.label(text=f"LoD {lod.index + 1}", icon="MESH_DATA")
+        lod_split = box.split(factor=0.42)
+
+        lod_left = lod_split.column()
+        lod_left.label(text=f"Vertices: {lod.vertex_count}")
+        lod_left.label(text=f"Indices: {lod.index_count}")
+
+        lod_right = lod_split.column()
+        lod_right.label(text=f"IB: {lod.ib_hash or 'Unknown'}")
+        lod_right.label(text=f"VB0: {lod.vb0_hash or 'Unknown'}")
+
+
 def draw_menu_post_dump_filtering(layout, context):
     settings = context.scene.efmi_tools_settings
     cfg = settings.post_dump_filtering
 
     layout.row()
     row = layout.row()
-    row.prop(settings, "frame_dump_folder", text="Source")
+    row.prop(settings, "object_source_folder", text="Source")
 
     layout.row()
 
@@ -101,24 +161,54 @@ def draw_menu_post_dump_filtering(layout, context):
         box.label(text=status, icon="INFO")
 
     if len(cfg.textures) == 0:
-        box.label(text="Choose a dump folder and load .dds textures.", icon="INFO")
+        box.label(text="Choose an object sources folder and load .dds textures.", icon="INFO")
+    else:
+        box.template_list(
+            EFMI_TOOLS_UL_PostDumpTextures.bl_idname,
+            "",
+            cfg,
+            "textures",
+            cfg,
+            "active_texture_index",
+            rows=8,
+        )
+
+        texture = cfg.get_active_texture()
+        if texture is not None:
+            draw_texture_preview(box, texture)
+            draw_texture_filter_buttons(box, cfg)
+            box.row().operator(EFMI_PostDumpApplyTextureNames.bl_idname, text="Apply")
+
+    layout.row()
+    draw_dump_components(layout, context)
+
+
+def draw_dump_components(layout, context):
+    cfg = context.scene.efmi_tools_settings.post_dump_filtering
+
+    box = layout.box()
+    box.label(text="Dump Components", icon="MESH_DATA")
+
+    row = box.row(align=True)
+    row.operator(EFMI_PostDumpLoadComponents.bl_idname, icon="FILE_REFRESH")
+    row.operator(EFMI_PostDumpClearComponents.bl_idname, text="Clear", icon="TRASH")
+
+    if len(cfg.components) == 0:
+        box.label(text="Load components to patch Metadata.json and component files.", icon="INFO")
         return
 
     box.template_list(
-        EFMI_TOOLS_UL_PostDumpTextures.bl_idname,
+        EFMI_TOOLS_UL_PostDumpComponents.bl_idname,
         "",
         cfg,
-        "textures",
+        "components",
         cfg,
-        "active_texture_index",
-        rows=8,
+        "active_component_index",
+        rows=7,
     )
 
-    texture = cfg.get_active_texture()
-    if texture is None:
-        return
+    component = cfg.get_active_component()
+    if component is not None:
+        draw_component_details(box, component)
 
-    draw_texture_preview(box, texture)
-    draw_texture_filter_buttons(box, cfg)
-
-    box.row().operator(EFMI_PostDumpApplyTextureNames.bl_idname, text="Apply")
+    box.row().operator(EFMI_PostDumpPatchComponents.bl_idname, text="Patch Dump", icon="CHECKMARK")

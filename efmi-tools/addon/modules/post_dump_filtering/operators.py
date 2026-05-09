@@ -20,6 +20,10 @@ def resolve_path(path):
     return Path(bpy.path.abspath(path)).expanduser()
 
 
+def resolve_object_source_folder(settings):
+    return resolve_path(settings.object_source_folder)
+
+
 def load_texture_image(texture_path):
     image = bpy.data.images.load(str(texture_path), check_existing=True)
     image.filepath = str(texture_path)
@@ -176,19 +180,19 @@ def clamp_active_texture_index(cfg):
 class EFMI_PostDumpLoadTextures(bpy.types.Operator):
     bl_idname = "efmi_tools.post_dump_load_textures"
     bl_label = "Load DDS Textures"
-    bl_description = "Load all .dds textures from the current frame dump folder"
+    bl_description = "Load all .dds textures from the current object sources folder"
 
     def execute(self, context):
         settings = context.scene.efmi_tools_settings
         cfg = settings.post_dump_filtering
 
-        if not settings.frame_dump_folder.strip():
-            self.report({"ERROR"}, "Source dump folder is not set.")
+        if not settings.object_source_folder.strip():
+            self.report({"ERROR"}, "Object sources folder is not set.")
             return {"CANCELLED"}
 
-        source_folder = resolve_path(settings.frame_dump_folder)
+        source_folder = resolve_object_source_folder(settings)
         if not source_folder.is_dir():
-            self.report({"ERROR"}, f"Source dump folder does not exist: {source_folder}")
+            self.report({"ERROR"}, f"Object sources folder does not exist: {source_folder}")
             return {"CANCELLED"}
 
         cfg.textures.clear()
@@ -224,7 +228,7 @@ class EFMI_PostDumpLoadTextures(bpy.types.Operator):
             cfg.loaded_count += 1
 
         if not texture_paths:
-            self.report({"WARNING"}, "No .dds textures were found in the selected dump folder.")
+            self.report({"WARNING"}, "No .dds textures were found in the selected object sources folder.")
             return {"FINISHED"}
 
         if cfg.failed_count:
@@ -330,9 +334,9 @@ class EFMI_PostDumpApplyTextureNames(bpy.types.Operator):
                 result.skipped += 1
                 print(f"Failed to delete texture '{texture.path}': {error}")
 
-        if deleted_hashes and settings.frame_dump_folder.strip():
+        if deleted_hashes and settings.object_source_folder.strip():
             result.usage_cleanup = remove_deleted_textures_from_usage(
-                resolve_path(settings.frame_dump_folder),
+                resolve_object_source_folder(settings),
                 deleted_hashes,
             )
 
